@@ -22,6 +22,28 @@ Typical flow: a user starts the server app on their computer, opens the
 served PWA on another device on the same network, and sends files to (or
 downloads files from) the server.
 
+### File transfer design
+
+When the user selects files, the PWA **processes them for multithreaded,
+continue-able (resumable) transfer** between the PWA and the server. This
+is a core design requirement, in both directions (upload and download):
+
+- Files are split into **chunks** so multiple chunks can be transferred
+  **concurrently** (parallel requests / workers), not as one monolithic
+  stream.
+- Transfers must be **resumable**: after an interruption (closed tab,
+  dropped Wi-Fi, server restart), a transfer continues from the chunks
+  already completed instead of starting over. This implies both sides
+  track per-chunk completion state, and chunk integrity is verifiable.
+- On the PWA side this must be built from browser-native primitives only
+  (e.g. `Blob.slice`, `fetch`, Web Workers, streams) — see the constraints
+  below. Chunk size and concurrency should account for memory limits on
+  mobile Safari/Android browsers.
+- The concrete transfer protocol (endpoints, chunk metadata, integrity
+  checks, session/transfer identifiers) is not implemented yet. Whoever
+  implements it must document it in this file and keep the PWA and Java
+  server implementations in lockstep.
+
 ## Hard constraints — never violate these
 
 ### PWA
