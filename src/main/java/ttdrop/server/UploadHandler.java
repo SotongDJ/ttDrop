@@ -69,6 +69,7 @@ public final class UploadHandler implements HttpHandler {
                 case "chunk" -> chunk(ex, key, q);
                 case "status" -> status(ex, key);
                 case "complete" -> complete(ex, key);
+                case "abort" -> abort(ex, key);
                 default -> ex.sendResponseHeaders(404, -1);
             }
         }
@@ -207,6 +208,16 @@ public final class UploadHandler implements HttpHandler {
         deleteRecursively(dir);
         String rel = root.relativize(target).toString().replace('\\', '/');
         sendJson(ex, 200, "{\"name\":" + FilesHandler.quote(rel) + "}");
+    }
+
+    /** Cancels a transfer: drops its staging area entirely. Idempotent. */
+    private void abort(HttpExchange ex, String key) throws IOException {
+        if (!"POST".equals(ex.getRequestMethod())) {
+            ex.sendResponseHeaders(405, -1);
+            return;
+        }
+        deleteRecursively(partRoot.resolve(key));
+        ex.sendResponseHeaders(204, -1);
     }
 
     /* ---------- helpers ---------- */

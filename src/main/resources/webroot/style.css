@@ -112,6 +112,21 @@ h2 {
   accent-color: var(--accent);
 }
 
+.file-list .cancel {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--muted);
+  border-radius: 0.375rem;
+  cursor: pointer;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.8rem;
+}
+
+.file-list .cancel:hover {
+  color: var(--err);
+  border-color: var(--err);
+}
+
 .file-list .status-ok {
   color: var(--ok);
   font-size: 0.8rem;

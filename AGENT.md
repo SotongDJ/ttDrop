@@ -56,6 +56,8 @@ is a core design requirement, in both directions (upload and download):
     written to a temp file then atomically renamed, so parallel chunk
     uploads and crashes are safe. Exact-size check per chunk.
   - `GET /api/upload/status?key=` → same shape as init's response.
+  - `POST /api/upload/abort?key=` → cancels a transfer by dropping its
+    staging area (idempotent 204).
   - `POST /api/upload/complete?key=` → verifies all chunks, assembles
     into the file root under a collision-safe name (`name (n).ext`),
     deletes staging; returns `{"name":finalName}`. 409 + missing index
@@ -402,7 +404,6 @@ Update this map when the source tree grows.
   through the browser warning) would unlock service workers and PWA
   install on LAN devices. Consider an endpoint exporting the cert plus
   per-platform install instructions.
-- Transfer cancellation, and delete/rename of server files from the
-  PWA.
+- Delete/rename of server files from the PWA.
 - GUI conveniences: choose file root from the window, QR code for the
   LAN URL, autostart option.
