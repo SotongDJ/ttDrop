@@ -46,6 +46,7 @@ public final class TtDropServer {
         http.createContext("/", new WebRootHandler());
         http.createContext("/files/", new FilesHandler(fileRoot));
         http.createContext("/api/upload/", new UploadHandler(fileRoot));
+        http.createContext("/api/files/", new FileOpsHandler(fileRoot));
         http.createContext("/qr.png", new QrPngHandler(this::scheme));
         http.createContext("/ca.crt", new CaCertHandler(TlsSupport.caCertificate(ttdrop.Config.dir())));
         http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());

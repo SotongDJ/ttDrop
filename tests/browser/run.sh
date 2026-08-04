@@ -28,7 +28,7 @@ sleep 3
 
 cd "$REPO_ROOT/tests/browser"
 FAIL=0
-for test in upload.test.mjs upload-resume.test.mjs download-resume.test.mjs folder-upload.test.mjs cancel.test.mjs; do
+for test in upload.test.mjs upload-resume.test.mjs download-resume.test.mjs folder-upload.test.mjs cancel.test.mjs fileops.test.mjs; do
     echo "=== $test ==="
     TTDROP_PORT="$PORT" TTDROP_DIR="$SERVE_DIR" node "$test" || FAIL=1
 done

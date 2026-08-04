@@ -112,6 +112,19 @@ h2 {
   accent-color: var(--accent);
 }
 
+.file-list .file-op {
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.9rem;
+}
+
+.file-list .file-op:hover {
+  color: var(--accent);
+}
+
 .file-list .cancel {
   border: 1px solid var(--border);
   background: none;
