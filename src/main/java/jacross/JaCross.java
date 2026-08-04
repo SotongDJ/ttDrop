@@ -26,7 +26,9 @@ public final class JaCross {
                 ? DesignLanguage.FLUENT : DesignLanguage.MATERIAL;
         boolean dark = platform.osDark().orElse(false);
         int seed = platform.accentColor().map(Color::getRGB).orElse(BRAND_SEED);
-        return Themes.build(seed, dark, language, Fonts.ui(13f));
+        java.awt.Font font = Fonts.ui(13f);
+        System.out.println("ttDrop UI font: " + font.getFamily());
+        return Themes.build(seed, dark, language, font);
     }
 
     /** Installs the L&F for the given tokens. Call on the EDT. */

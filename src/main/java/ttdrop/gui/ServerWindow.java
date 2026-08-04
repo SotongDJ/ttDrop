@@ -74,6 +74,10 @@ public final class ServerWindow extends JFrame {
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         applyAppIcon();
+        // Diagnosable theming: hovering the status label reveals which
+        // font family actually loaded (the embedded Noto Sans TC, or a
+        // fallback — see Fonts).
+        statusLabel.setToolTipText("UI font: " + statusLabel.getFont().getFamily());
         JPanel main = new JPanel();
         main.setLayout(new BoxLayout(main, BoxLayout.Y_AXIS));
         main.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));

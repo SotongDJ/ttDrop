@@ -3,30 +3,82 @@ package jacross;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 /**
  * Loads the embedded Noto Sans TC (SIL OFL, subset OTF) — one family
  * with full Traditional Chinese and competent Latin coverage, so the
- * GUI renders identically on every OS with no fallback boxes. Java 2D
- * derives bold synthetically from the single Regular weight.
+ * GUI renders identically on every OS with no fallback boxes.
+ *
+ * <p>Primary path: the OTF is extracted once to the config directory
+ * and loaded with {@code Font.createFont(File)} — the InputStream
+ * variant spools through {@code java.io.tmpdir}, which is exactly the
+ * kind of machine-specific dependency that fails silently. Every
+ * fallback (stream, then the logical Dialog font) prints a warning so
+ * a wrong-looking UI is diagnosable, never silent. Java 2D derives
+ * bold synthetically from the single Regular weight.
  */
 final class Fonts {
     private static final String RESOURCE = "/jacross/NotoSansTC-Regular.otf";
+    private static final String FILE_NAME = "NotoSansTC-Regular.otf";
 
     private Fonts() {
     }
 
-    /** The UI font at the given size; logical Dialog if loading fails. */
+    /** The UI font at the given size; logical Dialog if all paths fail. */
     static Font ui(float size) {
-        try (InputStream in = Fonts.class.getResourceAsStream(RESOURCE)) {
-            if (in != null) {
-                Font font = Font.createFont(Font.TRUETYPE_FONT, in);
-                GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(font);
-                return font.deriveFont(size);
-            }
-        } catch (Exception ignored) {
-            // fall through to the logical font
+        Font font = fromExtractedFile();
+        if (font == null) {
+            font = fromStream();
+        }
+        if (font != null && font.canDisplay('檔')) {
+            GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(font);
+            return font.deriveFont(size);
+        }
+        if (font != null) {
+            System.err.println("ttDrop: embedded font loaded but lacks CJK glyphs;"
+                    + " falling back to the system font");
         }
         return new Font(Font.DIALOG, Font.PLAIN, Math.round(size));
+    }
+
+    private static Font fromExtractedFile() {
+        try {
+            Path dir = ttdrop.Config.dir();
+            Files.createDirectories(dir);
+            Path file = dir.resolve(FILE_NAME);
+            long resourceSize;
+            try (InputStream in = Fonts.class.getResourceAsStream(RESOURCE)) {
+                if (in == null) {
+                    System.err.println("ttDrop: embedded font resource missing from the jar");
+                    return null;
+                }
+                if (!Files.exists(file) || Files.size(file) == 0) {
+                    Files.copy(in, file, StandardCopyOption.REPLACE_EXISTING);
+                }
+                resourceSize = Files.size(file);
+            }
+            if (resourceSize == 0) {
+                return null;
+            }
+            return Font.createFont(Font.TRUETYPE_FONT, file.toFile());
+        } catch (Exception e) {
+            System.err.println("ttDrop: could not load the UI font from the config dir: " + e);
+            return null;
+        }
+    }
+
+    private static Font fromStream() {
+        try (InputStream in = Fonts.class.getResourceAsStream(RESOURCE)) {
+            if (in == null) {
+                return null;
+            }
+            return Font.createFont(Font.TRUETYPE_FONT, in);
+        } catch (Exception e) {
+            System.err.println("ttDrop: could not load the UI font from the jar: " + e);
+            return null;
+        }
     }
 }
