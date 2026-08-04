@@ -139,6 +139,13 @@ update the sections below in the same commit.
   when asked to.
 - Commit messages in the imperative mood ("Add drop handler", not "Added
   drop handler"), short subject line, optional body explaining *why*.
+- **Every batch of modifications must be completed and published — never
+  leave finished work sitting uncommitted or unpushed:**
+  - **Code changes** (alone or with docs): finish the batch with
+    **commit + tag + push** — push the branch and the tag
+    (`git push -u origin <branch-name>` and `git push origin <tag>`).
+  - **Docs-only changes** (no code touched): finish the batch with
+    **commit + push** — no tag.
 
 ## Build, test, and lint
 
