@@ -46,9 +46,12 @@ is a core design requirement, in both directions (upload and download):
   Workers for chunk I/O (the widely supported OPFS write path, including
   Safari); clean up OPFS temporaries once a transfer completes.
 - **Upload protocol** (implemented; keep PWA and server in lockstep):
-  - `POST /api/upload/init?key=&name=&size=&chunkSize=` → creates or
+  - `POST /api/upload/init?key=&path=&size=&chunkSize=` → creates or
     finds the staging area; returns `{"key","chunkCount","have":[...]}`
-    where `have` lists chunk indexes already stored (resume).
+    where `have` lists chunk indexes already stored (resume). `path` is
+    a forward-slash relative path for folder uploads (`name` is the
+    legacy flat-file spelling); every segment is sanitized, traversal
+    rejected, depth capped at 32.
   - `PUT /api/upload/chunk?key=&index=n` (raw body) → stores one chunk;
     written to a temp file then atomically renamed, so parallel chunk
     uploads and crashes are safe. Exact-size check per chunk.
@@ -399,7 +402,7 @@ Update this map when the source tree grows.
   through the browser warning) would unlock service workers and PWA
   install on LAN devices. Consider an endpoint exporting the cert plus
   per-platform install instructions.
-- Folder uploads (directory picker / relative paths), transfer
-  cancellation, and delete/rename of server files from the PWA.
+- Transfer cancellation, and delete/rename of server files from the
+  PWA.
 - GUI conveniences: choose file root from the window, QR code for the
   LAN URL, autostart option.

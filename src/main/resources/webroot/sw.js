@@ -1,7 +1,7 @@
 /* ttDrop service worker: cache the app shell, never cache file data. */
 "use strict";
 
-const CACHE = "ttdrop-shell-v3";
+const CACHE = "ttdrop-shell-v4";
 const SHELL = ["/", "/style.css", "/app.js", "/uploader.js", "/downloader.js", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

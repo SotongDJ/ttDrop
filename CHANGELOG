@@ -8,6 +8,21 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.4.0 — folder uploads (2026-08-04)
+
+- Upload whole folders: a "Choose a folder…" picker (webkitdirectory)
+  and drag-and-drop of directories (entry traversal), with each file's
+  relative path preserved — the server recreates the directory
+  structure under the file root.
+- Upload API accepts a `path` parameter (forward-slash relative path);
+  every segment is sanitized like a flat name, traversal is rejected,
+  depth is bounded, and collision-safe naming applies within the target
+  directory. `complete` returns the relative path.
+- Transfer identity now includes the relative path, so same-named files
+  in different folders upload side by side.
+- New `folder-upload` browser test: three files across three nesting
+  levels (one multi-chunk) recreated with hash verification.
+
 ## v0.3.0 — HTTPS with a per-user CA, QR sharing, and port fallback (2026-08-04)
 
 - Maintain this CHANGELOG as the source for GitHub release notes.
