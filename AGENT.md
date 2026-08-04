@@ -148,9 +148,9 @@ and the PWA (installable shell, chunked parallel resumable uploads and
 downloads staged in OPFS with reload-resume).
 
 Not yet implemented / open decisions: HTTPS for secure contexts on LAN
-devices (see Known gaps), folder uploads, transfer cancellation UI,
-deleting/renaming server files from the PWA, and a wired-in automated
-test suite (the Playwright tests currently live outside the repo).
+devices (see Known gaps), folder uploads, transfer cancellation UI, and
+deleting/renaming server files from the PWA. Browser tests live in
+`tests/browser/` (see Testing).
 
 Do not assume the existence of any module, build file, or directory that
 is not present on disk — verify with the actual file tree first, and
@@ -241,6 +241,67 @@ formatting/naming conventions and the PWA file layout so later agents stay
 consistent. Until then, follow standard Java idioms and clean, dependency-
 free browser JS/CSS.
 
+## Testing
+
+Browser tests live in `tests/browser/` (plain Node scripts, exit 0/1):
+`upload.test.mjs`, `upload-resume.test.mjs`, `download-resume.test.mjs`,
+shared setup in `lib.mjs`, orchestrated by `run.sh` (starts a headless
+server on a temp dir, runs all three). They need Node.js, the
+`playwright` package, and Chromium — deliberately not in the pixi env
+to keep it lean. Run every one of them before finishing a batch that
+touches transfer code, and add a test when adding a transfer behavior.
+
+```sh
+pixi run build
+sh tests/browser/run.sh
+```
+
+## Cloud session notes (Claude Code remote containers)
+
+Facts future agent sessions will otherwise rediscover the hard way:
+
+- **pixi.sh is blocked** by the network policy (CONNECT 403). Install
+  pixi by downloading the binary from GitHub releases instead:
+  `https://github.com/prefix-dev/pixi/releases/latest/download/pixi-x86_64-unknown-linux-musl.tar.gz`
+  → extract to `~/.pixi/bin/pixi` and add to PATH. conda-forge is
+  reachable, so `pixi install` works normally after that.
+- **Tag pushes are rejected** (403): the session git proxy only accepts
+  pushes to the designated `claude/...` branch ref. Branch pushes work;
+  `git push origin <tag>` cannot. The GitHub MCP toolset has no
+  tag/release creation either. Hence the tags-on-maintainer-device rule.
+- **Browser testing works in-container**: Node 22 at `/opt/node22`,
+  global playwright module at
+  `/opt/node22/lib/node_modules/playwright/index.mjs` (NODE_PATH does
+  not apply to ESM imports — import by absolute path or set
+  `PLAYWRIGHT_MODULE`), Chromium at
+  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` (set
+  `CHROMIUM_BIN`; the exact versioned directory may change — check
+  `/opt/pw-browsers/`). `http://localhost` is a secure context, so
+  OPFS and service workers are fully testable headlessly.
+- **Do not `pkill -f` with a pattern that appears in your own command
+  line** (e.g. `pkill -f ttdrop.jar`) — it kills your own shell. Kill
+  Java test servers via `for pid in $(pgrep -x java); do kill $pid; done`.
+- Java processes pick up proxy settings via `JAVA_TOOL_OPTIONS`
+  automatically; harmless "Picked up JAVA_TOOL_OPTIONS" lines appear on
+  stderr.
+
+## Release history (tag ↔ commit)
+
+Tags for these batches could not be pushed from the cloud session (see
+above). Recreate them on a local clone and push from there:
+
+```sh
+git tag -a v0.1.0 -m "Batch 1: pixi environment scaffold and source layout" 39d4b15
+git tag -a v0.1.1 -m "Batch 2: Java server core" 60e2827
+git tag -a v0.1.2 -m "Batch 3: PWA shell" 6e2a63b
+git tag -a v0.2.0 -m "Batch 4: chunked resumable upload engine" 1e449c3
+git tag -a v0.2.1 -m "Batch 5: resumable downloads and config persistence" 3e235da
+git push origin v0.1.0 v0.1.1 v0.1.2 v0.2.0 v0.2.1
+```
+
+Remove each line from this list once its tag exists on origin; delete
+the section when none remain.
+
 ## Directory map
 
 ```
@@ -252,6 +313,7 @@ ttDrop/
 ├── .gitattributes        # pixi.lock merge/linguist settings
 ├── pixi.toml             # pixi workspace: deps, platforms, tasks (tracked)
 ├── pixi.lock             # pixi lockfile, all 4 platforms (tracked)
+├── tests/browser/        # Node+Playwright E2E tests (see Testing)
 └── src/main/
     ├── java/ttdrop/
     │   ├── Main.java             # entry point; GUI or --headless
@@ -283,9 +345,6 @@ Update this map when the source tree grows.
   OPFS in the browser — transfers work but without reload-resume or
   install. Decide how to handle this (self-signed HTTPS, graceful
   degradation, or both) and document the decision here.
-- Wire the Playwright browser tests (upload, upload-resume,
-  download-resume) into the repo as a pixi task so every batch can run
-  them; they currently exist only as session scratch files.
 - Folder uploads (directory picker / relative paths), transfer
   cancellation, and delete/rename of server files from the PWA.
 - GUI conveniences: choose file root from the window, QR code for the
