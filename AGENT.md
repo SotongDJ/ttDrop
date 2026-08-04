@@ -95,19 +95,33 @@ is a core design requirement, in both directions (upload and download):
 
 The server serves **HTTPS by default** (`--http` or the GUI checkbox
 opts out; the choice persists in config). `ttdrop.server.TlsSupport`
-generates a self-signed certificate once — via the JDK's `keytool`,
-resolved from `java.home` — into `~/.config/ttdrop/keystore.p12`
-(PKCS12, fixed password: it guards a self-signed LAN key in the user's
-own config dir) with SANs for `localhost`, `127.0.0.1`, and the LAN IPs
-present at generation time, and reuses it afterwards. Delete the
-keystore to regenerate (e.g. after the machine's IP changes).
+builds the material with the JDK's `keytool` (resolved from
+`java.home`) in `~/.config/ttdrop/`:
 
-Caveats to preserve in any related change: devices must accept the
-certificate once (browser interstitial); a merely-accepted cert still
-gives a secure context — OPFS staging and reload-resume work — but
-Chromium refuses **service-worker** scripts over it, so the app must
-keep registering the SW best-effort and degrading gracefully. URLs and
-QR codes must always follow `TtDropServer.scheme()`.
+- **Per-user CA, generated on the first HTTPS run and reused for all
+  sessions**: `ca.p12` (key) + `ca.crt` (PEM export, public half only).
+  Served at `GET /ca.crt` and linked from the PWA footer — installing
+  it once on a device makes every ttDrop server certificate trusted,
+  present and future, which also unlocks service workers and PWA
+  install. Never regenerate the CA implicitly except when `ca.crt`/
+  `ca.p12` are missing (that would invalidate installed trust).
+- **Server certificate**: `keystore.p12`, issued by the CA with SANs
+  for `localhost`, `127.0.0.1`, and the LAN IPs present at generation
+  time, `eku=serverAuth`, ≤825-day validity (Apple's trust limit).
+  Delete `keystore.p12` to re-issue under the same CA (e.g. after an
+  IP change) — installed trust persists. A pre-CA `keystore.p12`
+  (missing CA files) is discarded and re-issued.
+- Fixed keystore password ("ttdrop"): it guards self-signed LAN
+  material in the user's own config dir; PKCS12 requires one.
+
+Caveats to preserve in any related change: without installing the CA,
+devices tap through the browser interstitial once — a merely-accepted
+cert still gives a secure context (OPFS staging and reload-resume
+work), but Chromium refuses **service-worker** scripts over it, so the
+app must keep registering the SW best-effort and degrading gracefully.
+URLs and QR codes must always follow `TtDropServer.scheme()`. The gold
+verification for TLS changes: `curl --cacert ~/.config/ttdrop/ca.crt
+https://localhost:<port>/` must succeed with no `-k`.
 
 ### Server runtime layout
 
