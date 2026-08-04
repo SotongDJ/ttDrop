@@ -104,10 +104,10 @@ and ask the maintainer instead of proceeding.
 
 ## Current state of the repository
 
-The codebase is at the very beginning: as of now the repo contains only
-`README.md` (title only), `LICENSE` (GPL-3.0), `.gitignore` (Java
-template), and this guide. The server and PWA described above are the
-intended design, not yet implemented.
+The codebase is at the very beginning: the pixi environment, source
+layout, and a placeholder `ttdrop.Main` plus a placeholder webroot page
+exist, but the server and PWA described above are still the intended
+design, not yet implemented.
 
 Therefore: do not assume the existence of any module, build file, or
 directory that is not present on disk — verify with the actual file tree
@@ -146,19 +146,45 @@ update the sections below in the same commit.
     (`git push -u origin <branch-name>` and `git push origin <tag>`).
   - **Docs-only changes** (no code touched): finish the batch with
     **commit + push** — no tag.
+- **Tag convention:** annotated semver tags `vMAJOR.MINOR.PATCH`
+  (e.g. `v0.1.0`). Bump PATCH for an ordinary batch, MINOR for a
+  feature milestone, MAJOR for breaking/protocol changes. Keep the
+  `version` in `pixi.toml` in sync with the latest tag.
 
-## Build, test, and lint
+## Environment and build (pixi)
 
-Not configured yet. When introduced, document here:
+The toolchain is managed with **[pixi](https://pixi.sh)** — do not install
+JDKs or build tools any other way, and do not introduce Gradle/Maven
+without maintainer approval.
 
-- exact commands to build, test, and lint the Java server (and required
-  JDK version);
-- how the PWA assets are laid out and served (they should need no build
-  step, per the vanilla-only constraint);
-- how to run the server locally and reach the PWA from another device.
+Install pixi if missing:
 
-Until then, verify changes by whatever means the change allows, and state
-plainly in your summary what was and was not verified.
+- Linux/macOS: `curl -fsSL https://pixi.sh/install.sh | sh`
+- Windows: `powershell -ExecutionPolicy Bypass -c "irm -useb https://pixi.sh/install.ps1 | iex"`
+
+Rules:
+
+- **`pixi.toml` and `pixi.lock` are git-tracked — always.** Commit both
+  whenever dependencies or tasks change. Never add them to `.gitignore`.
+- The `.pixi/` environment directory is ignored and must stay ignored.
+- The lockfile is solved for `linux-64`, `win-64`, `osx-64`, `osx-arm64`;
+  keep all four platforms when changing dependencies.
+- The JDK comes from conda-forge (`openjdk >=25`, i.e. Java 25).
+
+Tasks (run from the repo root):
+
+- `pixi run build` — compiles `src/main/java` (entry `ttdrop.Main`) into
+  `build/classes` and packages `dist/ttdrop.jar` with the embedded
+  webroot from `src/main/resources`.
+- `pixi run run` — builds then runs the jar.
+- `pixi run clean` — removes `build/` and `dist/`.
+
+The PWA has **no build step** (vanilla-only constraint): its assets live
+in `src/main/resources/webroot/` and are packaged into the jar as-is.
+
+There is no test suite yet; when one is added, wire it as a pixi task and
+document it here. Until then, verify changes by building and running, and
+state plainly in your summary what was and was not verified.
 
 ## Coding conventions
 
@@ -171,18 +197,29 @@ free browser JS/CSS.
 
 ```
 ttDrop/
-├── AGENT.md      # this guide
-├── LICENSE       # GPL-3.0
-├── README.md     # project title (needs a real description)
-└── .gitignore    # Java template
+├── AGENT.md              # this guide
+├── LICENSE               # GPL-3.0
+├── README.md             # project title (needs a real description)
+├── .gitignore            # Java template + pixi env + build outputs
+├── .gitattributes        # pixi.lock merge/linguist settings
+├── pixi.toml             # pixi workspace: deps, platforms, tasks (tracked)
+├── pixi.lock             # pixi lockfile, all 4 platforms (tracked)
+└── src/main/
+    ├── java/ttdrop/      # Java server sources (entry: ttdrop.Main)
+    └── resources/
+        └── webroot/      # PWA assets, embedded into the jar as-is
 ```
 
+Build outputs go to `build/` and `dist/` (both git-ignored).
 Update this map when the source tree grows.
 
 ## Known gaps / good first tasks
 
 - README.md needs a real description (the "What ttDrop is" section above
   is a starting point), usage instructions, and a license notice.
-- No build system or source layout exists yet — confirm the intended
-  Java tooling (plain `javac`, Gradle, Maven, target JDK) with the
-  maintainer before scaffolding.
+- The server is a placeholder `Main` — GUI, HTTP server, transfer
+  protocol, and the real PWA are still to be implemented.
+- Serving over plain HTTP means non-localhost devices (e.g. a phone on
+  the LAN) do not get a secure context, which blocks service workers and
+  OPFS in the browser. Decide how to handle this (self-signed HTTPS,
+  graceful degradation, or both) and document the decision here.
