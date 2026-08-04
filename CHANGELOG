@@ -8,6 +8,18 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.5.0 — transfer cancellation (2026-08-04)
+
+- Every in-flight upload and download row has a cancel button: the
+  transfer worker is terminated, OPFS staging is removed (with brief
+  retries while worker locks release), and cancelled transfers no
+  longer resume after a reload.
+- New `POST /api/upload/abort?key=` endpoint drops the server-side
+  staging area for a cancelled upload (idempotent).
+- New `cancel` browser test: mid-flight cancel verified to leave no
+  client staging, no server staging, no assembled file, and nothing to
+  resume.
+
 ## v0.4.0 — folder uploads (2026-08-04)
 
 - Upload whole folders: a "Choose a folder…" picker (webkitdirectory)

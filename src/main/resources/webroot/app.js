@@ -139,6 +139,39 @@ function transferKey(name, size, lastModified) {
   return out;
 }
 
+/* Remove OPFS staging files; retries briefly because a just-terminated
+ * worker's sync access handles can hold locks for a moment. */
+async function removeStaging(dirName, key) {
+  if (!opfsAvailable()) return;
+  const root = await navigator.storage.getDirectory();
+  let dir;
+  try {
+    dir = await root.getDirectoryHandle(dirName);
+  } catch {
+    return;
+  }
+  for (const entry of [`${key}.bin`, `${key}.json`]) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        await dir.removeEntry(entry);
+        break;
+      } catch (err) {
+        if (err && err.name === "NotFoundError") break;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+    }
+  }
+}
+
+function addCancelButton(li, onCancel) {
+  const cancel = el("button", "cancel", "✕");
+  cancel.type = "button";
+  cancel.title = "Cancel transfer";
+  cancel.onclick = onCancel;
+  li.append(cancel);
+  return cancel;
+}
+
 function addTransferRow(key, name, size) {
   const li = el("li");
   const progress = document.createElement("progress");
@@ -146,28 +179,42 @@ function addTransferRow(key, name, size) {
   progress.value = 0;
   const status = el("span", "muted", "starting");
   li.append(el("span", "name", name), el("span", "size", formatSize(size)), progress, status);
+  const row = { progress, status, li, worker: null };
+  row.cancel = addCancelButton(li, () => {
+    if (row.worker) row.worker.terminate();
+    row.status.textContent = "cancelled";
+    row.status.className = "muted";
+    row.progress.remove();
+    row.cancel.remove();
+    fetch(`/api/upload/abort?key=${key}`, { method: "POST" }).catch(() => {});
+    removeStaging("ttdrop-outgoing", key);
+    transfers.delete(key);
+  });
   sendList.append(li);
-  transfers.set(key, { progress, status, li });
+  transfers.set(key, row);
 }
 
 function spawnWorker(message) {
   const worker = new Worker("/uploader.js");
+  const row = transfers.get(message.key);
+  if (row) row.worker = worker;
   worker.onmessage = (e) => {
     const msg = e.data;
-    const row = transfers.get(msg.key);
-    if (!row) return;
+    const current = transfers.get(msg.key);
+    if (!current) return;
     if (msg.type === "progress") {
-      row.progress.value = msg.total ? msg.done / msg.total : 1;
-      row.status.textContent = `${Math.round(100 * row.progress.value)}%`;
+      current.progress.value = msg.total ? msg.done / msg.total : 1;
+      current.status.textContent = `${Math.round(100 * current.progress.value)}%`;
     } else if (msg.type === "done") {
-      row.progress.value = 1;
-      row.status.textContent = `sent as ${msg.name}`;
-      row.status.className = "status-ok";
+      current.progress.value = 1;
+      current.status.textContent = `sent as ${msg.name}`;
+      current.status.className = "status-ok";
+      current.cancel.remove();
       worker.terminate();
       loadDir(currentDir).catch(showOffline);
     } else if (msg.type === "error") {
-      row.status.textContent = msg.message;
-      row.status.className = "status-err";
+      current.status.textContent = msg.message;
+      current.status.className = "status-err";
       worker.terminate();
     }
   };
@@ -206,8 +253,18 @@ function addDownloadRow(key, name, size) {
   progress.value = 0;
   const status = el("span", "muted", "starting");
   li.append(el("span", "name", name), el("span", "size", formatSize(size)), progress, status);
+  const row = { progress, status, li, worker: null };
+  row.cancel = addCancelButton(li, () => {
+    if (row.worker) row.worker.terminate();
+    row.status.textContent = "cancelled";
+    row.status.className = "muted";
+    row.progress.remove();
+    row.cancel.remove();
+    removeStaging("ttdrop-incoming", key);
+    downloads.delete(key);
+  });
   receiveList.append(li);
-  downloads.set(key, { progress, status, li });
+  downloads.set(key, row);
 }
 
 /* When the worker finishes, hand the staged OPFS bytes to the user as a
@@ -231,28 +288,31 @@ async function deliverDownload(key, name) {
 
 function spawnDownloadWorker(message) {
   const worker = new Worker("/downloader.js");
+  const row = downloads.get(message.key);
+  if (row) row.worker = worker;
   worker.onmessage = (e) => {
     const msg = e.data;
-    const row = downloads.get(msg.key);
-    if (!row) return;
+    const current = downloads.get(msg.key);
+    if (!current) return;
     if (msg.type === "progress") {
-      row.progress.value = msg.total ? msg.done / msg.total : 1;
-      row.status.textContent = `${Math.round(100 * row.progress.value)}%`;
+      current.progress.value = msg.total ? msg.done / msg.total : 1;
+      current.status.textContent = `${Math.round(100 * current.progress.value)}%`;
     } else if (msg.type === "done") {
-      row.progress.value = 1;
+      current.progress.value = 1;
+      current.cancel.remove();
       worker.terminate();
       deliverDownload(msg.key, msg.name)
         .then(() => {
-          row.status.textContent = "saved";
-          row.status.className = "status-ok";
+          current.status.textContent = "saved";
+          current.status.className = "status-ok";
         })
         .catch((err) => {
-          row.status.textContent = String(err.message || err);
-          row.status.className = "status-err";
+          current.status.textContent = String(err.message || err);
+          current.status.className = "status-err";
         });
     } else if (msg.type === "error") {
-      row.status.textContent = msg.message;
-      row.status.className = "status-err";
+      current.status.textContent = msg.message;
+      current.status.className = "status-err";
       worker.terminate();
     }
   };
