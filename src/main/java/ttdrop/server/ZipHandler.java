@@ -21,10 +21,13 @@ import java.util.zip.ZipOutputStream;
  * on disk and the response is chunked.
  */
 public final class ZipHandler implements HttpHandler {
-    private final Path root;
+    private final Path fileRoot;
+    private final java.util.function.Function<HttpExchange, Devices.Device> auth;
 
-    public ZipHandler(Path root) {
-        this.root = root;
+    public ZipHandler(Path fileRoot,
+            java.util.function.Function<HttpExchange, Devices.Device> auth) {
+        this.fileRoot = fileRoot;
+        this.auth = auth;
     }
 
     @Override
@@ -34,6 +37,16 @@ public final class ZipHandler implements HttpHandler {
                 ex.sendResponseHeaders(405, -1);
                 return;
             }
+            Devices.Device device = auth.apply(ex);
+            if (device == null) {
+                ex.sendResponseHeaders(401, -1);
+                return;
+            }
+            if (!device.read()) {
+                ex.sendResponseHeaders(403, -1);
+                return;
+            }
+            Path root = device.resolveRoot(fileRoot);
             Map<String, String> q = UploadHandler.query(ex);
             String raw = q.getOrDefault("path", "");
             Path target;
@@ -43,7 +56,7 @@ public final class ZipHandler implements HttpHandler {
                 String clean = UploadHandler.sanitizePath(raw);
                 target = clean == null ? null : root.resolve(clean).normalize();
                 if (target == null || !target.startsWith(root)
-                        || target.startsWith(root.resolve(UploadHandler.PART_DIR))) {
+                        || target.startsWith(fileRoot.resolve(UploadHandler.PART_DIR))) {
                     ex.sendResponseHeaders(400, -1);
                     return;
                 }
@@ -57,7 +70,7 @@ public final class ZipHandler implements HttpHandler {
             ex.getResponseHeaders().set("Content-Disposition",
                     "attachment; filename*=UTF-8''" + URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20"));
             ex.sendResponseHeaders(200, 0);
-            Path staging = root.resolve(UploadHandler.PART_DIR);
+            Path staging = fileRoot.resolve(UploadHandler.PART_DIR);
             try (ZipOutputStream zip = new ZipOutputStream(ex.getResponseBody());
                     var walk = Files.walk(target)) {
                 for (Path file : (Iterable<Path>) walk.sorted()::iterator) {

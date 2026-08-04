@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE = "ttdrop-shell-v12";
+const CACHE = "ttdrop-shell-v13";
 const SHELL = ["/", "/style.css", "/app.js", "/uploader.js", "/downloader.js",
 "/cert-help.html", "/manifest.webmanifest", "/icon.svg"];
 

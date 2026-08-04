@@ -501,8 +501,62 @@ connStatus.textContent = "Server unreachable";
 connStatus.classList.add("status-err");
 }
 
-loadDir("")
-.then(() => {
-connStatus.textContent = "Connected";
-})
-.catch(showOffline);
+const pairSection = document.getElementById("pair-section");
+const sendSection = document.getElementById("send-section");
+const receiveSection = document.getElementById("receive-section");
+const browseSection = document.getElementById("browse-section");
+
+async function pairWith(code) {
+const name = (navigator.userAgentData && navigator.userAgentData.platform)
+|| navigator.platform || "Device";
+const res = await fetch(
+`/api/pair?code=${encodeURIComponent(code)}&name=${encodeURIComponent(name)}`,
+{ method: "POST" });
+if (!res.ok) throw new Error(`pair failed: ${res.status}`);
+return res.json();
+}
+
+async function initSession() {
+try {
+const params = new URLSearchParams(location.search);
+if (params.has("pair")) {
+try {
+await pairWith(params.get("pair"));
+} catch {
+}
+history.replaceState(null, "", location.pathname);
+}
+const session = await (await fetch("/api/session")).json();
+if (session.pairingRequired && !session.paired) {
+pairSection.hidden = false;
+sendSection.hidden = true;
+receiveSection.hidden = true;
+browseSection.hidden = true;
+connStatus.textContent = "Not paired";
+return;
+}
+pairSection.hidden = true;
+sendSection.hidden = session.write === false;
+receiveSection.hidden = session.read === false;
+browseSection.hidden = session.read === false;
+connStatus.textContent = session.name ? `Connected — paired as ${session.name}` : "Connected";
+if (session.read !== false) await loadDir("");
+} catch {
+showOffline();
+}
+}
+
+document.getElementById("pair-form").addEventListener("submit", async (e) => {
+e.preventDefault();
+const errEl = document.getElementById("pair-error");
+errEl.hidden = true;
+try {
+await pairWith(document.getElementById("pair-code").value);
+await initSession();
+} catch {
+errEl.textContent = "Pairing failed — the code may be wrong or expired.";
+errEl.hidden = false;
+}
+});
+
+initSession();

@@ -13,7 +13,10 @@ import java.util.Properties;
  * is exclusively the file area — configuration never lives there.
  */
 public final class Config {
-    private static final Path DIR = Path.of(System.getProperty("user.home"), ".config", "ttdrop");
+    // TTDROP_CONFIG_DIR overrides the location (tests, portable setups).
+    private static final Path DIR = System.getenv("TTDROP_CONFIG_DIR") != null
+            ? Path.of(System.getenv("TTDROP_CONFIG_DIR"))
+            : Path.of(System.getProperty("user.home"), ".config", "ttdrop");
     private static final Path FILE = DIR.resolve("config.properties");
 
     /** The per-user config directory (also holds the TLS keystore). */
@@ -83,6 +86,16 @@ public final class Config {
 
     public void setFileOps(boolean fileOps) {
         props.setProperty("fileOps", String.valueOf(fileOps));
+    }
+
+    /** Device pairing requirement. Default ON (session per device). */
+    public boolean getPairing(boolean fallback) {
+        String value = props.getProperty("pairing");
+        return value == null ? fallback : Boolean.parseBoolean(value);
+    }
+
+    public void setPairing(boolean pairing) {
+        props.setProperty("pairing", String.valueOf(pairing));
     }
 
     /** Browsable HTML directory listings under /files/. Default OFF. */

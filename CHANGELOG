@@ -8,6 +8,36 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.16.0 — device pairing and per-device access control (2026-08-04)
+
+- Session per device, on by default: without pairing, a visitor sees
+  nothing — every file endpoint returns 401 and the web app shows only
+  a pairing screen. Pairing uses a one-time code (10-minute expiry,
+  one device per code) shown by the host as a QR code and copyable
+  text; scanning the QR opens `/?pair=CODE` and pairs automatically,
+  or the code can be typed/pasted into the app. The session lives in
+  an HttpOnly cookie; the server stores only its SHA-256.
+- Per-device access control, edited live in the new Devices panel of
+  the server window: each device has an allowed folder (default: its
+  own folder, so devices cannot see the host's files or each other),
+  and Read (listings/downloads/zip), Write (uploads, and rename/
+  delete together with the global toggle), and Browse (directory
+  listing pages, together with the global toggle) switches, plus
+  Remove to unpair.
+- "Pair device…" dialog in the GUI (QR + copy button); headless mode
+  prints a pairing code at startup and a fresh one whenever a code is
+  consumed. New flags `--pairing`/`--open`; "Require device pairing"
+  checkbox persisted as config `pairing`. `--open` restores the old
+  everyone-sees-everything behavior.
+- Upload staging is per device, so identical transfer keys from
+  different devices cannot collide or interfere.
+- The window title now shows the version (ttDrop vX.Y.Z) so it is
+  obvious which jar is running; `TTDROP_CONFIG_DIR` overrides the
+  config directory.
+- New `pairing` browser test (15 checks: 401 posture, QR pairing,
+  isolation, scoped uploads, code expiry/reissue); the full suite is
+  green over HTTP and HTTPS, and the L&F test stays green.
+
 ## v0.15.0 — JaCross-themed GUI with embedded Noto Sans TC (2026-08-04)
 
 - The server window is now styled by an embedded Tier 0 subset of the

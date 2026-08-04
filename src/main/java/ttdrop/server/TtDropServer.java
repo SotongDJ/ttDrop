@@ -25,9 +25,29 @@ public final class TtDropServer {
     private volatile boolean fileOpsEnabled;
     /** HTML directory listings under /files/; default OFF, toggleable while running. */
     private volatile boolean dirBrowseEnabled;
+    /** Session-per-device pairing; default ON, toggleable while running. */
+    private volatile boolean pairingRequired = true;
+    private final Devices devices = new Devices(ttdrop.Config.dir());
 
     public TtDropServer(Path fileRoot) {
         this.fileRoot = fileRoot.toAbsolutePath().normalize();
+    }
+
+    public Devices devices() {
+        return devices;
+    }
+
+    /** The device a request acts as, or null when unpaired in pairing mode. */
+    public Devices.Device device(com.sun.net.httpserver.HttpExchange ex) {
+        return devices.authorize(ex, pairingRequired);
+    }
+
+    public boolean isPairingRequired() {
+        return pairingRequired;
+    }
+
+    public void setPairingRequired(boolean required) {
+        this.pairingRequired = required;
     }
 
     public synchronized void start(int port) throws IOException {
@@ -48,11 +68,18 @@ public final class TtDropServer {
         }
         this.https = useHttps;
         http.createContext("/", new WebRootHandler());
-        http.createContext("/files/",
-                new FilesHandler(fileRoot, this::isFileOpsEnabled, this::isDirBrowseEnabled));
-        http.createContext("/api/upload/", new UploadHandler(fileRoot));
-        http.createContext("/api/files/", new FileOpsHandler(fileRoot, this::isFileOpsEnabled));
-        http.createContext("/api/zip", new ZipHandler(fileRoot));
+        http.createContext("/files/", new FilesHandler(fileRoot,
+                this::isFileOpsEnabled, this::isDirBrowseEnabled, this::device));
+        http.createContext("/api/upload/", new UploadHandler(fileRoot, this::device));
+        http.createContext("/api/files/",
+                new FileOpsHandler(fileRoot, this::isFileOpsEnabled, this::device));
+        http.createContext("/api/zip", new ZipHandler(fileRoot, this::device));
+        http.createContext("/api/pair", new PairHandler(devices, fileRoot,
+                this::isPairingRequired, this::isFileOpsEnabled, this::isDirBrowseEnabled,
+                this::scheme));
+        http.createContext("/api/session", new PairHandler(devices, fileRoot,
+                this::isPairingRequired, this::isFileOpsEnabled, this::isDirBrowseEnabled,
+                this::scheme));
         http.createContext("/qr.png", new QrPngHandler(this::scheme));
         http.createContext("/ca.crt", new CaCertHandler(TlsSupport.caCertificate(ttdrop.Config.dir())));
         http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());

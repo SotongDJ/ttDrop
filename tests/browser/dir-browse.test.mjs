@@ -21,7 +21,8 @@ writeFileSync(join(serveDir, "docs & more", "note.txt"), "browse works");
 writeFileSync(join(serveDir, "top.bin"), Buffer.from([9, 9]));
 
 const startServer = (extraArgs) => {
-  const proc = spawn(java, ["-jar", jar, "--headless", "--http", "--port", "0", ...extraArgs],
+  const proc = spawn(java,
+    ["-jar", jar, "--headless", "--http", "--port", "0", "--open", ...extraArgs],
     { cwd: serveDir });
   const port = new Promise((resolve, reject) => {
     let buf = "";
