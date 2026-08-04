@@ -115,7 +115,15 @@ async function transfer({ key, name, size, chunkSize, concurrency = 3, blob }) {
       const index = pending[next++];
       const start = index * chunkSize;
       const bytes = await source.slice(start, Math.min(size, start + chunkSize)).arrayBuffer();
-      await putWithRetry(`/api/upload/chunk?key=${key}&index=${index}`, bytes);
+      // End-to-end integrity: per-chunk SHA-256 where crypto.subtle
+      // exists (secure contexts); the server rejects mismatches with a
+      // retryable 422. Skipped silently elsewhere.
+      let digestParam = "";
+      if (self.crypto && self.crypto.subtle) {
+        const hash = new Uint8Array(await self.crypto.subtle.digest("SHA-256", bytes));
+        digestParam = "&sha256=" + [...hash].map((b) => b.toString(16).padStart(2, "0")).join("");
+      }
+      await putWithRetry(`/api/upload/chunk?key=${key}&index=${index}${digestParam}`, bytes);
       done++;
       self.postMessage({ type: "progress", key, done, total: chunkCount });
     }
@@ -142,7 +150,8 @@ async function putWithRetry(url, body, attempts = 4) {
     try {
       const res = await fetch(url, { method: "PUT", body });
       if (res.ok) return;
-      if (res.status >= 400 && res.status < 500) {
+      // 422 = digest mismatch (corruption in transit): retryable.
+      if (res.status >= 400 && res.status < 500 && res.status !== 422) {
         throw new Error(`chunk rejected (${res.status})`);
       }
     } catch (err) {

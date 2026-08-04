@@ -24,6 +24,16 @@ page.on("console", (m) => {
   errors.push(`console: ${m.text()}`);
 });
 
+// In secure contexts the uploader must attach per-chunk SHA-256 digests.
+let digestedChunks = 0;
+let totalChunks = 0;
+page.on("request", (req) => {
+  if (req.url().includes("/api/upload/chunk")) {
+    totalChunks++;
+    if (req.url().includes("sha256=")) digestedChunks++;
+  }
+});
+
 await page.goto(BASE, { waitUntil: "networkidle" });
 
 const opfs = await page.evaluate(async () => {
@@ -44,9 +54,11 @@ console.log("hash match:", srcHash === destHash);
 
 const listed = await page.textContent("#server-list");
 console.log("listed in UI:", listed.includes(finalName));
+console.log(`chunk digests: ${digestedChunks}/${totalChunks} requests carried sha256`);
 
 if (errors.length) console.log("BROWSER ERRORS:", errors);
-const ok = opfs && srcHash === destHash && listed.includes(finalName) && errors.length === 0;
+const ok = opfs && srcHash === destHash && listed.includes(finalName)
+  && totalChunks > 0 && digestedChunks === totalChunks && errors.length === 0;
 console.log(ok ? "TEST PASS" : "TEST FAIL");
 await browser.close();
 process.exit(ok ? 0 : 1);
