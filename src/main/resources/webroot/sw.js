@@ -1,7 +1,7 @@
 /* ttDrop service worker: cache the app shell, never cache file data. */
 "use strict";
 
-const CACHE = "ttdrop-shell-v10";
+const CACHE = "ttdrop-shell-v11";
 const SHELL = ["/", "/style.css", "/app.js", "/uploader.js", "/downloader.js",
   "/cert-help.html", "/manifest.webmanifest", "/icon.svg"];
 

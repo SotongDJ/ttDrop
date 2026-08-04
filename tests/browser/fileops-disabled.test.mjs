@@ -52,7 +52,11 @@ try {
   const browser = await launchBrowser();
   const page = await (await browser.newContext(CONTEXT_OPTIONS)).newPage();
   await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
-  const buttons = await page.evaluate(() => document.querySelectorAll("#server-list .file-op").length);
+  // Download buttons are read-only and always allowed; only the
+  // privileged rename/delete buttons must disappear.
+  const buttons = await page.evaluate(() =>
+    document.querySelectorAll(
+      '#server-list button[title^="Rename"], #server-list button[title^="Delete"]').length);
   check("no rename/delete buttons rendered", buttons === 0);
   await browser.close();
 } finally {

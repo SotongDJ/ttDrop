@@ -436,6 +436,9 @@ function renderListing(entries, path, fileOps) {
       };
       name.append(link);
     } else {
+      // In the app, clicking a file always downloads (managed,
+      // resumable). Inline viewing exists only when a /files/ URL is
+      // opened directly in the browser (whitelisted types).
       const filePath = `/files/${path}${encodeURIComponent(entry.name)}`;
       const link = el("a", null, entry.name);
       link.href = filePath;

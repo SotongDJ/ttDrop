@@ -103,7 +103,14 @@ is a core design requirement, in both directions (upload and download):
   the file-management toggle (`ZipHandler`).
 - **Download protocol** (implemented): `/files/<path>` supports `HEAD`
   and single-range `Range: bytes=a-b` GETs (206 + `Content-Range`,
-  416 on bad ranges) with an ETag of `"size-mtime"`. The PWA's
+  416 on bad ranges) with an ETag of `"size-mtime"`. A whitelist of
+  extensions (`FilesHandler.VIEWABLE`: images, pdf, text-likes as
+  text/plain) is served `inline` with `Content-Security-Policy:
+  sandbox` + `nosniff` so direct `/files/` URLs display in the
+  browser; every other type — HTML deliberately included — is an
+  `attachment` download. Never inline-render non-whitelisted uploads:
+  that would be stored XSS on the app origin. The PWA's own file list
+  always uses the managed download, never the inline view. The PWA's
   `downloader.js` worker fetches chunks in parallel with Range requests,
   writes them at their offsets into an OPFS staging file
   (`ttdrop-incoming/<key>.bin` + `.json` tracking completed indexes and

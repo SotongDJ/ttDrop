@@ -8,6 +8,20 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.13.0 — inline viewing for whitelisted types on /files/ (2026-08-04)
+
+- Opening a `/files/` URL directly in the browser now displays
+  whitelisted types inline instead of downloading: common images
+  (png/jpg/gif/webp/avif/bmp/ico/svg), pdf, and text-likes
+  (txt/md/log/csv/json/xml, all served as plain text). Everything else
+  — including HTML, deliberately — remains an attachment download.
+- Inline responses carry `Content-Security-Policy: sandbox` and
+  `X-Content-Type-Options: nosniff`, so even scriptable formats (SVG)
+  cannot run code on the app's origin.
+- Browsing inside the app at `/` is unchanged: clicking a file always
+  performs the managed (resumable) download, never an inline view.
+- New `inline-view` browser test covering both modes.
+
 ## v0.12.0 — end-to-end upload integrity digests (2026-08-04)
 
 - The upload worker computes a SHA-256 digest per chunk (crypto.subtle,
