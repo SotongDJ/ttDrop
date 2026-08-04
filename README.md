@@ -34,14 +34,22 @@ and page reloads.
    your network. Drop files onto the page to send; tap listed files to
    download.
 
-## How transfers work
+## Features
 
-- Files are split into chunks and transferred over **parallel
-  connections**, in both directions.
-- Transfers are **resumable**: interrupted uploads and downloads
-  continue from the chunks already done — across page reloads (staged
-  in the browser's private storage, OPFS) and across server restarts
-  (staged in a hidden `.ttdrop-part/` folder).
+- **Chunked, parallel, resumable transfers** in both directions:
+  interrupted uploads and downloads continue from the chunks already
+  done — across page reloads (staged in the browser's private storage,
+  OPFS) and across server restarts (staged in a hidden `.ttdrop-part/`
+  folder). Any transfer can be cancelled with full cleanup.
+- **Folder uploads**: pick a folder or drag one onto the page; the
+  directory structure is recreated on the server.
+- **Manage server files from the browser**: rename and delete
+  (recursively for folders) right from the file list.
+- **Share by QR**: the server window shows a QR code of its URL, and
+  the page itself can display one (`/qr.png`) to pass to other devices.
+- **Choose what you share**: change the shared folder from the window,
+  set it with `--root <dir>`, or just drop the jar into the folder;
+  optional start-on-launch.
 - The web app is **vanilla JS/CSS with browser-native APIs only** — no
   external libraries, no CDN, fully served by the jar itself.
 

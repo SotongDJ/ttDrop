@@ -8,6 +8,19 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.8.0 — docs polish and suite hardening (2026-08-04)
+
+- README rewritten around the full feature set: resumable/cancellable
+  transfers, folder uploads, browser-side file management, QR sharing,
+  shared-folder selection, and the vanilla-only constraint.
+- AGENT.md current-state and known-gaps sections synced to reality
+  (remaining ideas: CA install instructions per platform, zip folder
+  downloads, upload integrity digests, localization).
+- QR endpoint test fixed for the HTTPS-by-default era (spawns its
+  server with --http explicitly).
+- Full verification pass: the six-test browser suite green over both
+  HTTP and HTTPS, QR suite 8/8.
+
 ## v0.7.0 — choose the shared folder, autostart, --root flag (2026-08-04)
 
 - The server window can change the shared folder ("Change…" next to the

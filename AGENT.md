@@ -197,14 +197,15 @@ and ask the maintainer instead of proceeding.
 
 Implemented and verified end to end (Playwright/Chromium against the
 running jar): the Java server (GUI + headless, embedded webroot,
-`/files/` with Range support, chunked upload API, config persistence)
-and the PWA (installable shell, chunked parallel resumable uploads and
-downloads staged in OPFS with reload-resume).
+`/files/` with Range support, chunked upload API with folder paths,
+delete/rename API, config persistence, HTTPS-by-default with a
+per-user CA, QR endpoints, root chooser/--root/autostart) and the PWA
+(installable shell, chunked parallel resumable uploads and downloads
+staged in OPFS with reload-resume, folder uploads, cancellation, file
+management, QR sharing, CA install link).
 
-Not yet implemented / open decisions: HTTPS for secure contexts on LAN
-devices (see Known gaps), folder uploads, transfer cancellation UI, and
-deleting/renaming server files from the PWA. Browser tests live in
-`tests/browser/` (see Testing).
+Browser tests live in `tests/browser/`, QR tests in `tests/qr/` (see
+Testing). Remaining ideas live under Known gaps.
 
 Do not assume the existence of any module, build file, or directory that
 is not present on disk — verify with the actual file tree first, and
@@ -414,7 +415,11 @@ Update this map when the source tree grows.
 
 ## Known gaps / good first tasks
 
-- Trusting the ttDrop certificate at the OS level (instead of tapping
-  through the browser warning) would unlock service workers and PWA
-  install on LAN devices. Consider an endpoint exporting the cert plus
-  per-platform install instructions.
+- The CA certificate is exportable at `/ca.crt`, but the page offers no
+  per-platform install instructions (iOS profile install + trust
+  toggle, Android CA import, Windows/macOS store) — a short guide,
+  shown after tapping the install link, would help non-technical users.
+- Downloading a whole folder (zip on the fly) from the browser.
+- End-to-end integrity digests for uploads (e.g. client-computed
+  SHA-256 verified at complete time, where crypto.subtle is available).
+- The GUI is English-only; no localization scaffolding exists yet.
