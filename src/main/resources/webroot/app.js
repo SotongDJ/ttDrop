@@ -447,8 +447,45 @@ function renderListing(entries, path) {
     }
     li.append(name);
     if (!entry.dir) li.append(el("span", "size", formatSize(entry.size)));
+    li.append(fileOpButton("✎", `Rename ${entry.name}`, () => renameEntry(path, entry)));
+    li.append(fileOpButton("🗑", `Delete ${entry.name}`, () => deleteEntry(path, entry)));
     serverList.append(li);
   }
+}
+
+/* ---------- server file management ---------- */
+
+function fileOpButton(label, title, onClick) {
+  const button = el("button", "file-op", label);
+  button.type = "button";
+  button.title = title;
+  button.onclick = onClick;
+  return button;
+}
+
+async function renameEntry(path, entry) {
+  const to = window.prompt(`Rename "${entry.name}" to:`, entry.name);
+  if (!to || to === entry.name) return;
+  const res = await fetch(
+    `/api/files/rename?path=${encodeURIComponent(path + entry.name)}&to=${encodeURIComponent(to)}`,
+    { method: "POST" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    window.alert(`Rename failed: ${body.error || res.status}`);
+  }
+  loadDir(currentDir).catch(showOffline);
+}
+
+async function deleteEntry(path, entry) {
+  const what = entry.dir ? `folder "${entry.name}" and everything in it` : `"${entry.name}"`;
+  if (!window.confirm(`Delete ${what}?`)) return;
+  const res = await fetch(
+    `/api/files/delete?path=${encodeURIComponent(path + entry.name)}`,
+    { method: "POST" });
+  if (!res.ok && res.status !== 404) {
+    window.alert(`Delete failed: ${res.status}`);
+  }
+  loadDir(currentDir).catch(showOffline);
 }
 
 function showOffline() {

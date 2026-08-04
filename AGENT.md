@@ -83,6 +83,12 @@ is a core design requirement, in both directions (upload and download):
   a pure-JDK encoder (byte mode, versions 1–5, ECC level M, all eight
   masks) — do not swap it for a library; verify any change with
   `tests/qr/`. The Swing GUI shows the same QR for its address picker.
+- **File management** (implemented): `POST /api/files/delete?path=`
+  (file, or directory recursively) and
+  `POST /api/files/rename?path=&to=` (single sanitized name within the
+  same directory, 409 on collision). Both resolve strictly inside the
+  file root — never the root itself or `.ttdrop-part` — via the upload
+  sanitizers (`FileOpsHandler`).
 - **Download protocol** (implemented): `/files/<path>` supports `HEAD`
   and single-range `Range: bytes=a-b` GETs (206 + `Content-Range`,
   416 on bad ranges) with an ETag of `"size-mtime"`. The PWA's
@@ -383,7 +389,10 @@ ttDrop/
     │       ├── WebRootHandler.java# embedded PWA assets from the jar
     │       ├── FilesHandler.java  # /files/: listings, Range downloads
     │       ├── UploadHandler.java # /api/upload/: chunked resumable
-    │       └── QrPngHandler.java  # /qr.png: QR of the site URL
+    │       ├── FileOpsHandler.java# /api/files/: delete, rename
+    │       ├── QrPngHandler.java  # /qr.png: QR of the site URL
+    │       ├── CaCertHandler.java # /ca.crt: per-user CA download
+    │       └── TlsSupport.java    # CA + server cert generation
     └── resources/webroot/
         ├── index.html            # app shell
         ├── style.css             # vanilla CSS, light/dark
@@ -404,6 +413,5 @@ Update this map when the source tree grows.
   through the browser warning) would unlock service workers and PWA
   install on LAN devices. Consider an endpoint exporting the cert plus
   per-platform install instructions.
-- Delete/rename of server files from the PWA.
 - GUI conveniences: choose file root from the window, QR code for the
   LAN URL, autostart option.

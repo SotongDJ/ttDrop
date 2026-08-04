@@ -8,6 +8,18 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.6.0 — manage server files from the browser (2026-08-04)
+
+- Rename (✎) and delete (🗑) buttons on every server-list entry, with
+  prompt/confirm dialogs; folders delete recursively after an explicit
+  warning.
+- New `POST /api/files/rename?path=&to=` (single sanitized name,
+  same-directory, 409 on collision) and `POST /api/files/delete?path=`
+  (file, or directory recursively). Both resolve strictly inside the
+  file root and refuse the root itself and the transfer staging area.
+- New `fileops` browser test: rename, delete, and recursive folder
+  delete through the real dialogs, verified on disk.
+
 ## v0.5.0 — transfer cancellation (2026-08-04)
 
 - Every in-flight upload and download row has a cancel button: the
