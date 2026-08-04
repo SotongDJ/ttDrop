@@ -8,6 +8,22 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.17.0 — working folder pickers and versioned release jars (2026-08-04)
+
+- Fixed: choosing a folder was impossible — the folder dialogs
+  ("Change…" for the shared folder, per-device "Folder…") rendered
+  blank because BasicLookAndFeel ships no usable FileChooserUI. They
+  are replaced by a JaCross-drawn folder picker (double-click to
+  enter a folder, Up, or type a path); the per-device picker is
+  confined to the shared folder, which itself means "everything".
+- Release assets are now versioned: the jar on the GitHub releases
+  page is named `ttdrop_v{x}r{y}n{z}.jar` for version v{x}.{y}.{z}
+  (e.g. `ttdrop_v0r17n0.jar`), so downloads are never confused with
+  an older copy. The shared folder remains the directory the jar is
+  placed in and run from, served at `/files/`.
+- L&F test now renders the folder picker headlessly (24 checks);
+  browser suite green.
+
 ## v0.16.0 — device pairing and per-device access control (2026-08-04)
 
 - Session per device, on by default: without pairing, a visitor sees
