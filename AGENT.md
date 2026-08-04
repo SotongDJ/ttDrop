@@ -39,6 +39,12 @@ is a core design requirement, in both directions (upload and download):
   (e.g. `Blob.slice`, `fetch`, Web Workers, streams) — see the constraints
   below. Chunk size and concurrency should account for memory limits on
   mobile Safari/Android browsers.
+- The PWA uses **OPFS (Origin Private File System)** for temporary
+  handling: staging chunks, partially downloaded files, and resume state
+  live in OPFS rather than in memory, so large files survive page reloads
+  and don't exhaust RAM. Prefer `createSyncAccessHandle()` inside Web
+  Workers for chunk I/O (the widely supported OPFS write path, including
+  Safari); clean up OPFS temporaries once a transfer completes.
 - The concrete transfer protocol (endpoints, chunk metadata, integrity
   checks, session/transfer identifiers) is not implemented yet. Whoever
   implements it must document it in this file and keep the PWA and Java
