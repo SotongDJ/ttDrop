@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#2563eb">
+  <title>ttDrop — install the certificate</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+</head>
+<body>
+  <header>
+    <h1>Install the ttDrop certificate</h1>
+    <p class="muted">
+      One-time step per device. Afterwards this server — and every
+      future ttDrop session from the same computer — opens without
+      warnings, and the page can be installed as an app.
+    </p>
+  </header>
+
+  <main>
+    <p>
+      First download the certificate:
+      <a href="/ca.crt"><strong>ttdrop-ca.crt</strong></a>.
+      Then follow your platform below. The certificate is generated on
+      the computer running ttDrop and never leaves your network; it can
+      only vouch for that computer's own ttDrop servers.
+    </p>
+
+    <section>
+      <h2>iPhone / iPad (iOS, iPadOS)</h2>
+      <ol>
+        <li>Download <a href="/ca.crt">ttdrop-ca.crt</a> in Safari and
+          tap <em>Allow</em> when asked to download a configuration
+          profile.</li>
+        <li>Open <em>Settings</em> — a <em>Profile Downloaded</em> entry
+          appears near the top. Tap it and tap <em>Install</em>.</li>
+        <li>Then go to <em>Settings → General → About → Certificate
+          Trust Settings</em> and switch on full trust for
+          <em>ttDrop CA</em>.</li>
+        <li>Reload the ttDrop page.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Android</h2>
+      <ol>
+        <li>Download <a href="/ca.crt">ttdrop-ca.crt</a>.</li>
+        <li>Open <em>Settings → Security &amp; privacy → More security
+          settings → Encryption &amp; credentials → Install a
+          certificate → CA certificate</em> (wording varies by
+          vendor).</li>
+        <li>Choose <em>Install anyway</em> and pick the downloaded
+          file.</li>
+        <li>Reload the ttDrop page.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Windows</h2>
+      <ol>
+        <li>Download <a href="/ca.crt">ttdrop-ca.crt</a> and open it.</li>
+        <li>Click <em>Install Certificate…</em>, choose
+          <em>Local Machine</em> (or <em>Current User</em>).</li>
+        <li>Select <em>Place all certificates in the following store</em>
+          → <em>Trusted Root Certification Authorities</em> → finish.</li>
+        <li>Restart the browser.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>macOS</h2>
+      <ol>
+        <li>Download <a href="/ca.crt">ttdrop-ca.crt</a> and open it —
+          Keychain Access imports it.</li>
+        <li>In Keychain Access, find <em>ttDrop CA</em> (System or
+          login keychain), open it, expand <em>Trust</em>, and set
+          <em>When using this certificate</em> to
+          <em>Always Trust</em>.</li>
+        <li>Restart the browser.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Linux</h2>
+      <ol>
+        <li>System-wide (Debian/Ubuntu):
+          <code>sudo cp ttdrop-ca.crt
+          /usr/local/share/ca-certificates/ &amp;&amp; sudo
+          update-ca-certificates</code>
+          (Fedora: <code>/etc/pki/ca-trust/source/anchors/</code> +
+          <code>update-ca-trust</code>).</li>
+        <li>Chromium and Firefox keep their own store — import via
+          the browser's <em>Settings → Privacy/Security →
+          Certificates → Import</em>, trusting it for websites.</li>
+        <li>Restart the browser.</li>
+      </ol>
+    </section>
+
+    <p class="muted">
+      To undo, remove "ttDrop CA" from the same certificate store.
+      If the server's certificate ever stops matching (for example the
+      computer's address changed), delete
+      <code>keystore.p12</code> in the server's
+      <code>~/.config/ttdrop/</code> — a fresh certificate is issued
+      from the same CA, so devices stay trusted.
+    </p>
+
+    <p><a href="/">← Back to ttDrop</a></p>
+  </main>
+
+  <footer>
+    <p class="muted">ttDrop — local file transfer. GPL-3.0.</p>
+  </footer>
+</body>
+</html>

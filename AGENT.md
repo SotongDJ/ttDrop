@@ -419,10 +419,6 @@ Update this map when the source tree grows.
 
 ## Known gaps / good first tasks
 
-- The CA certificate is exportable at `/ca.crt`, but the page offers no
-  per-platform install instructions (iOS profile install + trust
-  toggle, Android CA import, Windows/macOS store) — a short guide,
-  shown after tapping the install link, would help non-technical users.
 - Downloading a whole folder (zip on the fly) from the browser.
 - End-to-end integrity digests for uploads (e.g. client-computed
   SHA-256 verified at complete time, where crypto.subtle is available).
