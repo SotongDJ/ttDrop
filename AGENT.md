@@ -50,6 +50,28 @@ is a core design requirement, in both directions (upload and download):
   implements it must document it in this file and keep the PWA and Java
   server implementations in lockstep.
 
+### Server runtime layout
+
+- The server ships as a **GUI jar**. The user **places the jar in the
+  target directory and runs it from there** (e.g. `N:\the\target\path` on
+  Windows or `/the/target/path` on Unix). That directory is the server's
+  **working directory** and is the file root served at
+  `https://localhost/files/` — received files land there and files placed
+  there are downloadable. Resolve the file root from the actual working
+  directory at runtime; never hard-code paths, and handle both Windows
+  drive-letter paths and Unix paths.
+- The **webroot does not exist on disk**. The PWA assets (HTML, JS, CSS,
+  manifest, service worker, icons) are embedded in the jar and served by
+  the server **on demand** from its resources. Do not scaffold a webroot
+  directory next to the jar or read PWA assets from the filesystem.
+- **Configuration** lives in `.config/ttdrop/` under the **user home
+  directory** (i.e. `~/.config/ttdrop/`, resolved via `user.home` — the
+  same layout on Windows, macOS, and Linux). Config never lives in the
+  working directory; the working directory is exclusively the file area.
+- Keep the served file area and the transfer temporaries distinct from
+  config, and make sure serving `/files/` never escapes the working
+  directory (path traversal — see the security ground rule).
+
 ## Hard constraints — never violate these
 
 ### PWA
