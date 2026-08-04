@@ -72,6 +72,18 @@ is a core design requirement, in both directions (upload and download):
     worker falls back to slicing the original `File` (no reload-resume).
   - File names are sanitized server-side (separators/reserved characters
     stripped, no traversal, 255-char cap).
+- **Download protocol** (implemented): `/files/<path>` supports `HEAD`
+  and single-range `Range: bytes=a-b` GETs (206 + `Content-Range`,
+  416 on bad ranges) with an ETag of `"size-mtime"`. The PWA's
+  `downloader.js` worker fetches chunks in parallel with Range requests,
+  writes them at their offsets into an OPFS staging file
+  (`ttdrop-incoming/<key>.bin` + `.json` tracking completed indexes and
+  the ETag), and resumes across reloads; an ETag mismatch on resume
+  restarts the transfer. When complete, the main thread hands the staged
+  file to the browser as a blob-URL save. **Staging must not be deleted
+  at delivery time** — the save streams lazily from the OPFS file — so
+  the meta is marked `delivered` and cleanup runs on the next page load.
+  Without OPFS, file links fall back to plain navigation downloads.
 
 ### Server runtime layout
 
@@ -91,6 +103,8 @@ is a core design requirement, in both directions (upload and download):
   directory** (i.e. `~/.config/ttdrop/`, resolved via `user.home` — the
   same layout on Windows, macOS, and Linux). Config never lives in the
   working directory; the working directory is exclusively the file area.
+  Implemented as `ttdrop.Config` (`config.properties`; currently stores
+  the last used port, saved when the GUI starts the server).
 - Keep the served file area and the transfer temporaries distinct from
   config, and make sure serving `/files/` never escapes the working
   directory (path traversal — see the security ground rule).

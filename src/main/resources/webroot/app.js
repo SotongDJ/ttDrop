@@ -5,6 +5,7 @@ const connStatus = document.getElementById("conn-status");
 const dropZone = document.getElementById("drop-zone");
 const fileInput = document.getElementById("file-input");
 const sendList = document.getElementById("send-list");
+const receiveList = document.getElementById("receive-list");
 const serverList = document.getElementById("server-list");
 const breadcrumbs = document.getElementById("breadcrumbs");
 
@@ -134,22 +135,123 @@ function queueFiles(files) {
   }
 }
 
-/* Resume transfers whose bytes are still staged in OPFS from a previous
+/* ---------- managed downloads (chunked, resumable) ---------- */
+
+const downloads = new Map();
+
+function opfsAvailable() {
+  return !!(navigator.storage && navigator.storage.getDirectory);
+}
+
+function addDownloadRow(key, name, size) {
+  const li = el("li");
+  const progress = document.createElement("progress");
+  progress.max = 1;
+  progress.value = 0;
+  const status = el("span", "muted", "starting");
+  li.append(el("span", "name", name), el("span", "size", formatSize(size)), progress, status);
+  receiveList.append(li);
+  downloads.set(key, { progress, status, li });
+}
+
+/* When the worker finishes, hand the staged OPFS bytes to the user as a
+ * normal browser download. The staging entries must NOT be deleted here:
+ * the blob URL streams lazily from the OPFS file, so deleting it now
+ * would cancel the save. The meta is marked delivered and cleanup
+ * happens on the next page load (see resumePending). */
+async function deliverDownload(key, name) {
+  const root = await navigator.storage.getDirectory();
+  const dir = await root.getDirectoryHandle("ttdrop-incoming");
+  const file = await (await dir.getFileHandle(`${key}.bin`)).getFile();
+  const url = URL.createObjectURL(file);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  const worker = new Worker("/downloader.js");
+  worker.onmessage = () => worker.terminate();
+  worker.postMessage({ cmd: "markDelivered", key });
+}
+
+function spawnDownloadWorker(message) {
+  const worker = new Worker("/downloader.js");
+  worker.onmessage = (e) => {
+    const msg = e.data;
+    const row = downloads.get(msg.key);
+    if (!row) return;
+    if (msg.type === "progress") {
+      row.progress.value = msg.total ? msg.done / msg.total : 1;
+      row.status.textContent = `${Math.round(100 * row.progress.value)}%`;
+    } else if (msg.type === "done") {
+      row.progress.value = 1;
+      worker.terminate();
+      deliverDownload(msg.key, msg.name)
+        .then(() => {
+          row.status.textContent = "saved";
+          row.status.className = "status-ok";
+        })
+        .catch((err) => {
+          row.status.textContent = String(err.message || err);
+          row.status.className = "status-err";
+        });
+    } else if (msg.type === "error") {
+      row.status.textContent = msg.message;
+      row.status.className = "status-err";
+      worker.terminate();
+    }
+  };
+  worker.postMessage(message);
+}
+
+async function startDownload(path, name, size) {
+  // Without OPFS there is nowhere to stage chunks: use the plain link.
+  if (!opfsAvailable()) {
+    window.location.href = path;
+    return;
+  }
+  const head = await fetch(path, { method: "HEAD" });
+  if (!head.ok) {
+    showOffline();
+    return;
+  }
+  const etag = head.headers.get("ETag");
+  const key = transferKey(path, size, etag || "");
+  if (downloads.has(key)) return;
+  addDownloadRow(key, name, size);
+  spawnDownloadWorker({
+    cmd: "download", key, path, name, size, etag,
+    chunkSize: CHUNK_SIZE, concurrency: CONCURRENCY,
+  });
+}
+
+/* Resume transfers whose state is still staged in OPFS from a previous
  * page load. Silently does nothing where OPFS is unavailable. */
 async function resumePending() {
-  if (!navigator.storage || !navigator.storage.getDirectory) return;
-  try {
-    const root = await navigator.storage.getDirectory();
-    const dir = await root.getDirectoryHandle("ttdrop-outgoing");
-    for await (const [entryName, handle] of dir.entries()) {
-      if (!entryName.endsWith(".json")) continue;
-      const meta = JSON.parse(await (await handle.getFile()).text());
-      if (transfers.has(meta.key)) continue;
-      addTransferRow(meta.key, meta.name, meta.size);
-      spawnWorker({ cmd: "resume", key: meta.key, concurrency: CONCURRENCY });
+  if (!opfsAvailable()) return;
+  const root = await navigator.storage.getDirectory();
+  for (const [dirName, isUpload] of [["ttdrop-outgoing", true], ["ttdrop-incoming", false]]) {
+    try {
+      const dir = await root.getDirectoryHandle(dirName);
+      for await (const [entryName, handle] of dir.entries()) {
+        if (!entryName.endsWith(".json")) continue;
+        const meta = JSON.parse(await (await handle.getFile()).text());
+        if (isUpload) {
+          if (transfers.has(meta.key)) continue;
+          addTransferRow(meta.key, meta.name, meta.size);
+          spawnWorker({ cmd: "resume", key: meta.key, concurrency: CONCURRENCY });
+        } else if (meta.delivered) {
+          // Handed to the browser on a previous visit; safe to clean now.
+          await dir.removeEntry(`${meta.key}.bin`).catch(() => {});
+          await dir.removeEntry(`${meta.key}.json`).catch(() => {});
+        } else {
+          if (downloads.has(meta.key)) continue;
+          addDownloadRow(meta.key, meta.name, meta.size);
+          spawnDownloadWorker({ cmd: "resume", key: meta.key, concurrency: CONCURRENCY });
+        }
+      }
+    } catch {
+      /* no staging directory yet — nothing to resume */
     }
-  } catch {
-    /* no staging directory yet — nothing to resume */
   }
 }
 
@@ -208,8 +310,13 @@ function renderListing(entries, path) {
       };
       name.append(link);
     } else {
+      const filePath = `/files/${path}${encodeURIComponent(entry.name)}`;
       const link = el("a", null, entry.name);
-      link.href = `/files/${path}${encodeURIComponent(entry.name)}`;
+      link.href = filePath;
+      link.onclick = (e) => {
+        e.preventDefault();
+        startDownload(filePath, entry.name, entry.size);
+      };
       name.append(link);
     }
     li.append(name);

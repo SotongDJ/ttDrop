@@ -14,6 +14,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 
+import ttdrop.Config;
 import ttdrop.server.TtDropServer;
 
 /**
@@ -22,14 +23,16 @@ import ttdrop.server.TtDropServer;
  */
 public final class ServerWindow extends JFrame {
     private final TtDropServer server;
+    private final Config config;
     private final JTextField portField;
     private final JButton toggleButton = new JButton("Start");
     private final JLabel statusLabel = new JLabel("Stopped");
     private final JLabel urlLabel = new JLabel(" ");
 
-    public ServerWindow(TtDropServer server, int initialPort) {
+    public ServerWindow(TtDropServer server, int initialPort, Config config) {
         super("ttDrop");
         this.server = server;
+        this.config = config;
         this.portField = new JTextField(String.valueOf(initialPort), 6);
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -70,6 +73,8 @@ public final class ServerWindow extends JFrame {
         try {
             int port = Integer.parseInt(portField.getText().trim());
             server.start(port);
+            config.setPort(port);
+            config.save();
             statusLabel.setText("Running");
             toggleButton.setText("Stop");
             portField.setEnabled(false);

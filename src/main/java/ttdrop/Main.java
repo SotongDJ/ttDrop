@@ -24,7 +24,8 @@ public final class Main {
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        int port = DEFAULT_PORT;
+        Config config = Config.load();
+        int port = config.getPort(DEFAULT_PORT);
         boolean headless = false;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -48,7 +49,7 @@ public final class Main {
             Thread.currentThread().join();
         } else {
             final int guiPort = port;
-            javax.swing.SwingUtilities.invokeLater(() -> new ServerWindow(server, guiPort).setVisible(true));
+            javax.swing.SwingUtilities.invokeLater(() -> new ServerWindow(server, guiPort, config).setVisible(true));
         }
     }
 }

@@ -3,7 +3,6 @@ package ttdrop.server;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
@@ -29,7 +28,8 @@ public final class FilesHandler implements HttpHandler {
     @Override
     public void handle(HttpExchange ex) throws IOException {
         try (ex) {
-            if (!"GET".equals(ex.getRequestMethod())) {
+            boolean head = "HEAD".equals(ex.getRequestMethod());
+            if (!"GET".equals(ex.getRequestMethod()) && !head) {
                 ex.sendResponseHeaders(405, -1);
                 return;
             }
@@ -43,7 +43,7 @@ public final class FilesHandler implements HttpHandler {
             if (Files.isDirectory(target)) {
                 sendListing(ex, target);
             } else if (Files.isRegularFile(target)) {
-                sendFile(ex, target);
+                sendFile(ex, target, head);
             } else {
                 ex.sendResponseHeaders(404, -1);
             }
@@ -79,15 +79,74 @@ public final class FilesHandler implements HttpHandler {
         }
     }
 
-    private void sendFile(HttpExchange ex, Path file) throws IOException {
+    /**
+     * Sends a file, honoring single-range {@code Range: bytes=a-b} requests
+     * with 206 responses so the PWA can download chunks in parallel and
+     * resume. The ETag ({@code "size-mtime"}) lets a resuming client detect
+     * that the file changed since its partial download was staged.
+     */
+    private void sendFile(HttpExchange ex, Path file, boolean head) throws IOException {
         long size = Files.size(file);
         String name = file.getFileName().toString();
+        String etag = "\"" + size + "-" + Files.getLastModifiedTime(file).toMillis() + "\"";
+        ex.getResponseHeaders().set("Accept-Ranges", "bytes");
+        ex.getResponseHeaders().set("ETag", etag);
         ex.getResponseHeaders().set("Content-Type", "application/octet-stream");
         ex.getResponseHeaders().set("Content-Disposition",
                 "attachment; filename*=UTF-8''" + URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20"));
-        ex.sendResponseHeaders(200, size == 0 ? -1 : size);
-        try (InputStream in = Files.newInputStream(file); OutputStream out = ex.getResponseBody()) {
-            in.transferTo(out);
+
+        long from = 0;
+        long to = size - 1;
+        boolean partial = false;
+        String range = ex.getRequestHeaders().getFirst("Range");
+        if (range != null && range.startsWith("bytes=") && !range.contains(",")) {
+            String spec = range.substring("bytes=".length()).trim();
+            int dash = spec.indexOf('-');
+            try {
+                if (dash > 0) {
+                    from = Long.parseLong(spec.substring(0, dash));
+                    to = dash < spec.length() - 1 ? Long.parseLong(spec.substring(dash + 1)) : size - 1;
+                } else if (dash == 0) {
+                    long suffix = Long.parseLong(spec.substring(1));
+                    from = Math.max(0, size - suffix);
+                }
+                partial = true;
+            } catch (NumberFormatException nfe) {
+                partial = false;
+            }
+            if (partial && (from > to || from >= size)) {
+                ex.getResponseHeaders().set("Content-Range", "bytes */" + size);
+                ex.sendResponseHeaders(416, -1);
+                return;
+            }
+            to = Math.min(to, size - 1);
+        }
+
+        long length = to - from + 1;
+        if (partial) {
+            ex.getResponseHeaders().set("Content-Range", "bytes " + from + "-" + to + "/" + size);
+        }
+        int code = partial ? 206 : 200;
+        if (head) {
+            ex.getResponseHeaders().set("Content-Length", String.valueOf(length));
+            ex.sendResponseHeaders(code, -1);
+            return;
+        }
+        ex.sendResponseHeaders(code, length == 0 ? -1 : length);
+        try (var channel = Files.newByteChannel(file); OutputStream out = ex.getResponseBody()) {
+            channel.position(from);
+            byte[] buf = new byte[64 * 1024];
+            long remaining = length;
+            java.nio.ByteBuffer bb = java.nio.ByteBuffer.wrap(buf);
+            while (remaining > 0) {
+                bb.clear().limit((int) Math.min(buf.length, remaining));
+                int read = channel.read(bb);
+                if (read < 0) {
+                    break;
+                }
+                out.write(buf, 0, read);
+                remaining -= read;
+            }
         }
     }
 
