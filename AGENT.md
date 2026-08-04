@@ -96,7 +96,8 @@ is a core design requirement, in both directions (upload and download):
   GUI's "Allow browser file management" toggle (live, persisted) or the
   `--fileops` flag; while off the endpoints return 403 and the `/files/`
   listing advertises `fileOps:false` so the PWA hides the buttons. Keep
-  new privileged operations behind this same default-off pattern.
+  new privileged operations behind this same default-off pattern
+  (directory browsing above follows it too).
 - **Zip downloads** (implemented): `GET /api/zip?path=<dir>` streams a
   recursive zip of a directory (empty path = whole root; staging
   excluded; sanitized/traversal-checked). Read-only, so not gated by
@@ -110,7 +111,21 @@ is a core design requirement, in both directions (upload and download):
   browser; every other type — HTML deliberately included — is an
   `attachment` download. Never inline-render non-whitelisted uploads:
   that would be stored XSS on the app origin. The PWA's own file list
-  always uses the managed download, never the inline view. The PWA's
+  always uses the managed download, never the inline view.
+- **Directory browsing** (implemented, default OFF): a `/files/`
+  directory URL normally returns the JSON listing
+  (`{"fileOps":bool,"entries":[{name,dir,size,mtime}]}`). With the
+  GUI's "Allow directory browsing" toggle (live, persisted, config
+  `dirBrowse`) or `--browse`, a request whose `Accept` header contains
+  `text/html` (a navigating browser) instead gets a server-rendered
+  GitHub-repo-style HTML index page (folders first, icons, sizes,
+  relative ages, breadcrumbs). The PWA is unaffected either way — it
+  requests listings with `Accept: application/json`. The HTML page is
+  generated in `FilesHandler.sendHtmlListing`: names HTML-escaped,
+  hrefs absolute and percent-encoded, and the page served with
+  `Content-Security-Policy: default-src 'none'; style-src
+  'unsafe-inline'` + `nosniff` so hostile file names can never become
+  script. Keep that CSP and escaping intact in any change. The PWA's
   `downloader.js` worker fetches chunks in parallel with Range requests,
   writes them at their offsets into an OPFS staging file
   (`ttdrop-incoming/<key>.bin` + `.json` tracking completed indexes and
@@ -176,8 +191,12 @@ https://localhost:<port>/` must succeed with no `-k`.
   directory** (i.e. `~/.config/ttdrop/`, resolved via `user.home` — the
   same layout on Windows, macOS, and Linux). Config never lives in the
   working directory; the working directory is exclusively the file area.
-  Implemented as `ttdrop.Config` (`config.properties`; currently stores
-  the last used port, saved when the GUI starts the server).
+  Implemented as `ttdrop.Config` (`config.properties`; keys: `port`,
+  `https` (default true), `root`, `autostart` (default false),
+  `fileOps` (default false), `dirBrowse` (default false)).
+- The GUI's URL label is a clickable link: clicking it opens the URL in
+  the user's default browser (`java.awt.Desktop.browse`, falling back
+  to `xdg-open`/`open`/`rundll32` where Desktop is unsupported).
 - Keep the served file area and the transfer temporaries distinct from
   config, and make sure serving `/files/` never escapes the working
   directory (path traversal — see the security ground rule).
@@ -197,6 +216,24 @@ https://localhost:<port>/` must succeed with no `-k`.
   before relying on an API, and provide fallbacks where support is partial.
 - It must remain installable/usable as a PWA served from the local Java
   server — no reliance on internet-hosted assets.
+- **Webroot code style** (`src/main/resources/webroot/`, maintainer
+  mandate — different from the Java conventions):
+  - Visual design is "clean professional minimalist"; the file lists
+    (app and directory pages) are styled after the GitHub repository
+    file view (bordered rounded list, folders first, icons, muted
+    size/age columns).
+  - **No indentation** in HTML, JS, or CSS — every line starts at
+    column 0. Break lines so JS and CSS stay **under 100 characters
+    per line**.
+  - **No comments** in webroot files — they ship to every client;
+    document behavior in AGENT.md instead.
+  - HTML declares `<meta charset="utf-8">` so emoji and CJK characters
+    render correctly.
+  - Every served page ends with a **privacy note** stating the
+    external JS libraries/frameworks/web fonts/APIs used — which must
+    always truthfully read "none" (browser-built-ins excluded).
+  - Bump the `CACHE` version in `sw.js` whenever any shell asset
+    changes, or installed PWAs keep serving the old shell.
 
 ### Server
 - **Java**, and it must run on Windows, macOS, and Linux. No OS-specific
@@ -208,6 +245,11 @@ https://localhost:<port>/` must succeed with no `-k`.
 ### General
 - The project is licensed **GPL-3.0**. Do not add code copied from
   incompatibly-licensed sources.
+- **README.md is bilingual**: English (UK spelling) followed by
+  Traditional Chinese as used in Taiwan (臺灣正體). Keep both sections
+  in sync in the same commit. Use Taiwanese glossary only — e.g.
+  伺服器/檔案/資料夾/連接埠/憑證/網路/軟體/預設/支援/透過/遞迴 —
+  never mainland-China terms (服务器/文件夹/端口/证书/网络/默认/支持).
 
 If a change you're considering would break one of these constraints, stop
 and ask the maintainer instead of proceeding.
@@ -218,10 +260,12 @@ Implemented and verified end to end (Playwright/Chromium against the
 running jar): the Java server (GUI + headless, embedded webroot,
 `/files/` with Range support, chunked upload API with folder paths,
 delete/rename API, config persistence, HTTPS-by-default with a
-per-user CA, QR endpoints, root chooser/--root/autostart) and the PWA
-(installable shell, chunked parallel resumable uploads and downloads
-staged in OPFS with reload-resume, folder uploads, cancellation, file
-management, QR sharing, CA install link).
+per-user CA, QR endpoints, root chooser/--root/autostart, default-off
+file-management and directory-browsing toggles, click-to-open URL) and
+the PWA (installable shell, chunked parallel resumable uploads and
+downloads staged in OPFS with reload-resume, folder uploads,
+cancellation, file management, zip downloads, QR sharing, CA install
+link, GitHub-style file lists).
 
 Browser tests live in `tests/browser/`, QR tests in `tests/qr/` (see
 Testing). Remaining ideas live under Known gaps.
@@ -308,16 +352,18 @@ Tasks (run from the repo root):
 The PWA has **no build step** (vanilla-only constraint): its assets live
 in `src/main/resources/webroot/` and are packaged into the jar as-is.
 
-There is no test suite yet; when one is added, wire it as a pixi task and
-document it here. Until then, verify changes by building and running, and
-state plainly in your summary what was and was not verified.
+Tests are not wired as pixi tasks (they need Node.js, which is outside
+the pixi env by design) — see Testing for how to run them, and state
+plainly in your summary what was and was not verified.
 
 ## Coding conventions
 
-Not established yet. When the first real code lands, record here the Java
-formatting/naming conventions and the PWA file layout so later agents stay
-consistent. Until then, follow standard Java idioms and clean, dependency-
-free browser JS/CSS.
+- **Java** (`src/main/java`): standard Java idioms, 4-space indent,
+  javadoc/comments where they carry non-obvious constraints. Pure JDK
+  only — no third-party dependencies without maintainer approval.
+- **Webroot** (`src/main/resources/webroot/`): the mandated style is
+  the opposite of the Java one — no indentation, no comments, lines
+  under 100 chars; see "Webroot code style" under Hard constraints.
 
 ## Testing
 
@@ -327,12 +373,16 @@ live `/qr.png` endpoint. Run them for any change touching
 `ttdrop.util.QrCode` or `QrPngHandler`.
 
 Browser tests live in `tests/browser/` (plain Node scripts, exit 0/1):
-`upload.test.mjs`, `upload-resume.test.mjs`, `download-resume.test.mjs`,
-shared setup in `lib.mjs`, orchestrated by `run.sh` (starts a headless
-server on a temp dir, runs all three). They need Node.js, the
-`playwright` package, and Chromium — deliberately not in the pixi env
-to keep it lean. Run every one of them before finishing a batch that
-touches transfer code, and add a test when adding a transfer behavior.
+upload, upload-resume, download-resume, folder-upload, cancel,
+fileops, fileops-disabled, zip-download, inline-view, and dir-browse
+`.test.mjs` files; shared setup in `lib.mjs`, orchestrated by `run.sh`
+(starts a headless `--fileops` server on a temp dir and runs them all;
+`TTDROP_SCHEME=https` reruns the suite over TLS). Tests covering
+default-off toggles (fileops-disabled, dir-browse) spawn their own
+servers with the flags they need. They need Node.js, the `playwright`
+package, and Chromium — deliberately not in the pixi env to keep it
+lean. Run every one of them before finishing a batch that touches
+transfer code, and add a test when adding a transfer behavior.
 
 ```sh
 pixi run build
@@ -396,7 +446,7 @@ ttDrop/
 ├── AGENT.md              # this guide
 ├── CHANGELOG             # changelog; source of GitHub release notes
 ├── LICENSE               # GPL-3.0
-├── README.md             # user-facing description and quick start
+├── README.md             # user-facing docs, bilingual en-GB + zh-Hant-TW
 ├── .gitignore            # Java template + pixi env + build outputs
 ├── .gitattributes        # pixi.lock merge/linguist settings
 ├── pixi.toml             # pixi workspace: deps, platforms, tasks (tracked)
@@ -420,6 +470,7 @@ ttDrop/
     │       └── TlsSupport.java    # CA + server cert generation
     └── resources/webroot/
         ├── index.html            # app shell
+        ├── cert-help.html        # per-platform CA install guide
         ├── style.css             # vanilla CSS, light/dark
         ├── app.js                # UI, browser, transfer orchestration
         ├── uploader.js           # upload worker (OPFS staging)

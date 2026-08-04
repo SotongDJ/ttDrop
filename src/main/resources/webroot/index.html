@@ -1,57 +1,56 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#2563eb">
-  <title>ttDrop</title>
-  <link rel="stylesheet" href="/style.css">
-  <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#2563eb">
+<title>ttDrop</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
 </head>
 <body>
-  <header>
-    <h1>ttDrop</h1>
-    <p id="conn-status" class="muted">Connecting…</p>
-  </header>
-
-  <main>
-    <section id="send-section">
-      <h2>Send files</h2>
-      <div id="drop-zone" tabindex="0" role="button"
-           aria-label="Select or drop files to send">
-        <p><strong>Drop files or folders here</strong> or tap to choose files</p>
-        <p><button id="folder-button" type="button">Choose a folder…</button></p>
-        <input id="file-input" type="file" multiple hidden>
-        <input id="folder-input" type="file" webkitdirectory hidden>
-      </div>
-      <ul id="send-list" class="file-list"></ul>
-    </section>
-
-    <section id="receive-section">
-      <h2>Downloads</h2>
-      <ul id="receive-list" class="file-list"></ul>
-    </section>
-
-    <section id="browse-section">
-      <h2>Files on server</h2>
-      <nav id="breadcrumbs" aria-label="Current folder"></nav>
-      <ul id="server-list" class="file-list"></ul>
-    </section>
-  </main>
-
-  <footer>
-    <details id="qr-share">
-      <summary>Share this page via QR</summary>
-      <img id="qr-img" alt="QR code linking to this page" width="232" height="232">
-    </details>
-    <p class="muted">
-      <a href="/cert-help.html">Install the ttDrop certificate</a>
-      to remove browser warnings and enable app install on this device.
-    </p>
-    <p class="muted">ttDrop — local file transfer. GPL-3.0.</p>
-  </footer>
-
-  <script src="/app.js"></script>
+<header>
+<h1>ttDrop</h1>
+<p id="conn-status" class="muted">Connecting…</p>
+</header>
+<main>
+<section id="send-section">
+<h2>Send files</h2>
+<div id="drop-zone" tabindex="0" role="button" aria-label="Select or drop files to send">
+<p><strong>Drop files or folders here</strong> or tap to choose files</p>
+<p><button id="folder-button" type="button">Choose a folder…</button></p>
+<input id="file-input" type="file" multiple hidden>
+<input id="folder-input" type="file" webkitdirectory hidden>
+</div>
+<ul id="send-list" class="file-list"></ul>
+</section>
+<section id="receive-section">
+<h2>Downloads</h2>
+<ul id="receive-list" class="file-list"></ul>
+</section>
+<section id="browse-section">
+<h2>Files on server</h2>
+<nav id="breadcrumbs" aria-label="Current folder"></nav>
+<ul id="server-list" class="file-list repo-list"></ul>
+</section>
+</main>
+<footer>
+<details id="qr-share">
+<summary>Share this page via QR</summary>
+<img id="qr-img" alt="QR code linking to this page" width="232" height="232">
+</details>
+<p class="muted">
+<a href="/cert-help.html">Install the ttDrop certificate</a>
+to remove browser warnings and enable app install on this device.
+</p>
+<p class="muted">
+Privacy: this app uses no external JavaScript libraries, no frameworks,
+no external web fonts, and no external APIs beyond those built into your
+browser. Everything is served by this ttDrop server on your own network.
+</p>
+<p class="muted">ttDrop — local file transfer. GPL-3.0.</p>
+</footer>
+<script src="/app.js"></script>
 </body>
 </html>
