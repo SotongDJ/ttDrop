@@ -3,10 +3,40 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#2563eb">
   <title>ttDrop</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
 </head>
 <body>
-  <h1>ttDrop</h1>
-  <p>PWA placeholder — served from the jar's embedded webroot.</p>
+  <header>
+    <h1>ttDrop</h1>
+    <p id="conn-status" class="muted">Connecting…</p>
+  </header>
+
+  <main>
+    <section id="send-section">
+      <h2>Send files</h2>
+      <div id="drop-zone" tabindex="0" role="button"
+           aria-label="Select or drop files to send">
+        <p><strong>Drop files here</strong> or tap to choose</p>
+        <input id="file-input" type="file" multiple hidden>
+      </div>
+      <ul id="send-list" class="file-list"></ul>
+    </section>
+
+    <section id="browse-section">
+      <h2>Files on server</h2>
+      <nav id="breadcrumbs" aria-label="Current folder"></nav>
+      <ul id="server-list" class="file-list"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <p class="muted">ttDrop — local file transfer. GPL-3.0.</p>
+  </footer>
+
+  <script src="/app.js"></script>
 </body>
 </html>
