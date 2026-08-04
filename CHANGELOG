@@ -8,6 +8,8 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.3.0 — HTTPS with a per-user CA, QR sharing, and port fallback (2026-08-04)
+
 - Maintain this CHANGELOG as the source for GitHub release notes.
 - README rewritten around the released jar: download from the latest
   GitHub release, headless usage, development section linking AGENT.md,
