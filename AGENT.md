@@ -88,7 +88,11 @@ is a core design requirement, in both directions (upload and download):
   `POST /api/files/rename?path=&to=` (single sanitized name within the
   same directory, 409 on collision). Both resolve strictly inside the
   file root — never the root itself or `.ttdrop-part` — via the upload
-  sanitizers (`FileOpsHandler`).
+  sanitizers (`FileOpsHandler`). **Disabled by default**: requires the
+  GUI's "Allow browser file management" toggle (live, persisted) or the
+  `--fileops` flag; while off the endpoints return 403 and the `/files/`
+  listing advertises `fileOps:false` so the PWA hides the buttons. Keep
+  new privileged operations behind this same default-off pattern.
 - **Download protocol** (implemented): `/files/<path>` supports `HEAD`
   and single-range `Range: bytes=a-b` GETs (206 + `Content-Range`,
   416 on bad ranges) with an ETag of `"size-mtime"`. The PWA's

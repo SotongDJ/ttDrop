@@ -20,9 +20,11 @@ import java.util.stream.Stream;
  */
 public final class FilesHandler implements HttpHandler {
     private final Path root;
+    private final java.util.function.BooleanSupplier fileOps;
 
-    public FilesHandler(Path root) {
+    public FilesHandler(Path root, java.util.function.BooleanSupplier fileOps) {
         this.root = root;
+        this.fileOps = fileOps;
     }
 
     @Override
@@ -51,7 +53,8 @@ public final class FilesHandler implements HttpHandler {
     }
 
     private void sendListing(HttpExchange ex, Path dir) throws IOException {
-        StringBuilder json = new StringBuilder("{\"entries\":[");
+        // fileOps tells the PWA whether to render rename/delete buttons.
+        StringBuilder json = new StringBuilder("{\"fileOps\":" + fileOps.getAsBoolean() + ",\"entries\":[");
         try (Stream<Path> entries = Files.list(dir)) {
             boolean first = true;
             for (Path p : (Iterable<Path>) entries.sorted()::iterator) {

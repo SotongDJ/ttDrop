@@ -391,7 +391,7 @@ async function loadDir(path) {
   const data = await res.json();
   currentDir = path;
   renderBreadcrumbs(path);
-  renderListing(data.entries, path);
+  renderListing(data.entries, path, data.fileOps === true);
 }
 
 function renderBreadcrumbs(path) {
@@ -418,7 +418,7 @@ function renderBreadcrumbs(path) {
   }
 }
 
-function renderListing(entries, path) {
+function renderListing(entries, path, fileOps) {
   serverList.textContent = "";
   if (!entries.length) {
     serverList.append(el("li", "muted", "Empty folder"));
@@ -447,8 +447,10 @@ function renderListing(entries, path) {
     }
     li.append(name);
     if (!entry.dir) li.append(el("span", "size", formatSize(entry.size)));
-    li.append(fileOpButton("✎", `Rename ${entry.name}`, () => renameEntry(path, entry)));
-    li.append(fileOpButton("🗑", `Delete ${entry.name}`, () => deleteEntry(path, entry)));
+    if (fileOps) {
+      li.append(fileOpButton("✎", `Rename ${entry.name}`, () => renameEntry(path, entry)));
+      li.append(fileOpButton("🗑", `Delete ${entry.name}`, () => deleteEntry(path, entry)));
+    }
     serverList.append(li);
   }
 }
