@@ -8,6 +8,17 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.12.0 — end-to-end upload integrity digests (2026-08-04)
+
+- The upload worker computes a SHA-256 digest per chunk (crypto.subtle,
+  secure contexts) and sends it with the chunk; the server verifies the
+  received bytes against it while writing and rejects mismatches with a
+  retryable 422, so corrupted chunks are automatically re-sent.
+- Digests are optional: uploads without them (insecure LAN contexts)
+  are accepted unchanged; malformed digest parameters are rejected.
+- Upload test now asserts every chunk request carries a digest in
+  secure contexts.
+
 ## v0.11.0 — download folders as zip (2026-08-04)
 
 - Every folder in the server list has a ⬇ button that downloads it as

@@ -145,16 +145,42 @@ public final class UploadHandler implements HttpHandler {
             return;
         }
         long expected = index == chunkCount - 1 && size % chunkSize != 0 ? size % chunkSize : Math.min(chunkSize, size);
+        String sha256 = q.get("sha256");
+        if (sha256 != null && !sha256.matches("[a-f0-9]{64}")) {
+            sendJson(ex, 400, "{\"error\":\"bad sha256\"}");
+            return;
+        }
         Path dir = partRoot.resolve(key);
         Path tmp = dir.resolve(index + ".tmp");
         long written;
-        try (InputStream in = ex.getRequestBody(); OutputStream out = Files.newOutputStream(tmp)) {
+        java.security.MessageDigest digest;
+        try {
+            digest = java.security.MessageDigest.getInstance("SHA-256");
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IOException(e);
+        }
+        try (InputStream in = ex.getRequestBody();
+                OutputStream out = new java.security.DigestOutputStream(Files.newOutputStream(tmp), digest)) {
             written = in.transferTo(out);
         }
         if (written != expected) {
             Files.deleteIfExists(tmp);
             sendJson(ex, 400, "{\"error\":\"chunk size mismatch\"}");
             return;
+        }
+        // Optional end-to-end integrity: reject a chunk whose bytes do not
+        // match the digest the client computed before sending. 422 is
+        // retryable — the client re-sends the same chunk.
+        if (sha256 != null) {
+            StringBuilder hex = new StringBuilder();
+            for (byte b : digest.digest()) {
+                hex.append(String.format("%02x", b));
+            }
+            if (!hex.toString().equals(sha256)) {
+                Files.deleteIfExists(tmp);
+                sendJson(ex, 422, "{\"error\":\"digest mismatch\"}");
+                return;
+            }
         }
         Files.move(tmp, dir.resolve(index + ".chunk"),
                 StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);

@@ -52,9 +52,13 @@ is a core design requirement, in both directions (upload and download):
     a forward-slash relative path for folder uploads (`name` is the
     legacy flat-file spelling); every segment is sanitized, traversal
     rejected, depth capped at 32.
-  - `PUT /api/upload/chunk?key=&index=n` (raw body) → stores one chunk;
-    written to a temp file then atomically renamed, so parallel chunk
-    uploads and crashes are safe. Exact-size check per chunk.
+  - `PUT /api/upload/chunk?key=&index=n[&sha256=]` (raw body) → stores
+    one chunk; written to a temp file then atomically renamed, so
+    parallel chunk uploads and crashes are safe. Exact-size check per
+    chunk. The optional `sha256` (64 hex chars) is verified against the
+    received bytes while writing — mismatch → retryable 422, chunk
+    discarded. The PWA sends it whenever `crypto.subtle` exists; absent
+    digests are accepted (insecure LAN contexts).
   - `GET /api/upload/status?key=` → same shape as init's response.
   - `POST /api/upload/abort?key=` → cancels a transfer by dropping its
     staging area (idempotent 204).
@@ -423,6 +427,4 @@ Update this map when the source tree grows.
 
 ## Known gaps / good first tasks
 
-- End-to-end integrity digests for uploads (e.g. client-computed
-  SHA-256 verified at complete time, where crypto.subtle is available).
 - The GUI is English-only; no localization scaffolding exists yet.
