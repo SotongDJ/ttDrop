@@ -9,6 +9,9 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 ## Unreleased
 
 - Maintain this CHANGELOG as the source for GitHub release notes.
+- README rewritten around the released jar: download from the latest
+  GitHub release, headless usage, development section linking AGENT.md,
+  CHANGELOG, and the browser test suite.
 
 ## v0.2.1 — resumable downloads and config persistence (2026-08-04)
 
