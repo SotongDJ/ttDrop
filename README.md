@@ -18,11 +18,13 @@ dropped connections and page reloads.
 
 ### Quick start
 
-1. Get `ttdrop.jar` from the
+1. Get the jar from the
    [latest release](https://github.com/SotongDJ/ttDrop/releases/latest)
    (needs Java 25 or newer), or build it yourself — see
-   [Development](#development).
-2. Copy `ttdrop.jar` into the folder you want to share, e.g.
+   [Development](#development). Release jars carry the version in
+   their name: `ttdrop_v{x}r{y}n{z}.jar` is version v{x}.{y}.{z}
+   (e.g. `ttdrop_v0r17n0.jar` is v0.17.0).
+2. Copy the jar into the folder you want to share, e.g.
    `N:\the\target\path` or `/the/target/path`. That folder becomes the
    file area: received files land there, and files placed there are
    downloadable.
@@ -133,9 +135,10 @@ ttDrop 由一個小巧的 **Java 伺服器程式**（Windows/macOS/Linux）加�
 ### 快速開始
 
 1. 從[最新發行版本](https://github.com/SotongDJ/ttDrop/releases/latest)
-   下載 `ttdrop.jar`（需要 Java 25 或更新版本），或自行建置——見
-   [開發](#開發)。
-2. 將 `ttdrop.jar` 複製到你想分享的資料夾，例如
+   下載 jar 檔（需要 Java 25 或更新版本），或自行建置——見
+   [開發](#開發)。發行版 jar 檔名帶有版本：`ttdrop_v{x}r{y}n{z}.jar`
+   即 v{x}.{y}.{z} 版（例如 `ttdrop_v0r17n0.jar` 是 v0.17.0）。
+2. 將 jar 檔複製到你想分享的資料夾，例如
    `N:\the\target\path` 或 `/the/target/path`。該資料夾即為檔案區：
    收到的檔案會存放於此，放在裡面的檔案也能被下載。
 3. 執行 jar（雙擊，或 `java -jar ttdrop.jar`），在視窗中按下

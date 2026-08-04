@@ -218,7 +218,7 @@ public final class ServerWindow extends JFrame {
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
         row.add(new JLabel(device.name()));
         JLabel pathLabel = new JLabel(
-                device.relPath().isEmpty() ? "(everything)" : device.relPath() + "/");
+                device.relPath().isEmpty() ? "→ (everything)" : "→ " + device.relPath() + "/");
         pathLabel.setFont(pathLabel.getFont().deriveFont(Font.PLAIN));
         pathLabel.setToolTipText("The only folder this device can see");
         row.add(pathLabel);
@@ -259,17 +259,10 @@ public final class ServerWindow extends JFrame {
     /** Restrict a device to a folder inside the shared root. */
     private void chooseDeviceFolder(ttdrop.server.Devices.Device device) {
         java.nio.file.Path fileRoot = server.getFileRoot();
-        javax.swing.JFileChooser chooser = new javax.swing.JFileChooser(fileRoot.toFile());
-        chooser.setFileSelectionMode(javax.swing.JFileChooser.DIRECTORIES_ONLY);
-        chooser.setDialogTitle("Folder \"" + device.name() + "\" may access");
-        if (chooser.showOpenDialog(this) != javax.swing.JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-        java.nio.file.Path chosen = chooser.getSelectedFile().toPath().toAbsolutePath().normalize();
-        if (!chosen.startsWith(fileRoot)) {
-            JOptionPane.showMessageDialog(this,
-                    "The folder must be inside the shared folder:\n" + fileRoot,
-                    "ttDrop", JOptionPane.ERROR_MESSAGE);
+        java.nio.file.Path chosen = FolderPicker.pick(this,
+                "Folder \"" + device.name() + "\" may access (shared folder = everything)",
+                device.resolveRoot(fileRoot), fileRoot);
+        if (chosen == null) {
             return;
         }
         String rel = fileRoot.relativize(chosen).toString().replace('\\', '/');
@@ -279,13 +272,11 @@ public final class ServerWindow extends JFrame {
 
     /** Pick a new file root (only while stopped); persisted in config. */
     private void chooseRoot() {
-        javax.swing.JFileChooser chooser = new javax.swing.JFileChooser(server.getFileRoot().toFile());
-        chooser.setFileSelectionMode(javax.swing.JFileChooser.DIRECTORIES_ONLY);
-        chooser.setDialogTitle("Choose the folder ttDrop shares");
-        if (chooser.showOpenDialog(this) != javax.swing.JFileChooser.APPROVE_OPTION) {
+        java.nio.file.Path newRoot = FolderPicker.pick(this,
+                "Choose the folder ttDrop shares", server.getFileRoot(), null);
+        if (newRoot == null) {
             return;
         }
-        java.nio.file.Path newRoot = chooser.getSelectedFile().toPath();
         server = new TtDropServer(newRoot);
         server.setFileOpsEnabled(fileOpsBox.isSelected());
         server.setDirBrowseEnabled(dirBrowseBox.isSelected());

@@ -62,4 +62,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           newest=$(grep -oE '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG | head -1 | awk '{print $2}')
-          gh release upload "$newest" dist/ttdrop.jar --clobber
+          # Asset naming convention: vX.Y.Z -> ttdrop_vXrYnZ.jar
+          asset="ttdrop_$(echo "$newest" | sed -E 's/^v([0-9]+)\.([0-9]+)\.([0-9]+)$/v\1r\2n\3/').jar"
+          cp dist/ttdrop.jar "dist/$asset"
+          gh release upload "$newest" "dist/$asset" --clobber

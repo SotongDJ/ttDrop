@@ -500,8 +500,11 @@ can tell which jar they are running), merge to `main`, then trigger
 parses CHANGELOG and, per version section, updates the existing GitHub
 release's title/notes or creates a missing release tagged at the
 triggering commit — so add one new version section per run and trigger
-from the merge commit that should carry the tag. It also builds
-`dist/ttdrop.jar` (Temurin 25) and attaches it to the newest release.
+from the merge commit that should carry the tag. It also builds the
+jar (Temurin 25) and attaches it to the newest release under the
+**versioned asset name `ttdrop_v{x}r{y}n{z}.jar`** for version
+v{x}.{y}.{z} (e.g. v0.17.0 → `ttdrop_v0r17n0.jar`) — never plain
+`ttdrop.jar`.
 Editing past notes is fine: edit CHANGELOG, merge, re-trigger — the
 sync is idempotent. This workflow exists because cloud sessions cannot
 push tags; from a local device, plain `git tag` + `git push origin
@@ -531,6 +534,8 @@ ttDrop/
     │   ├── Config.java           # ~/.config/ttdrop/config.properties
     │   ├── util/QrCode.java      # pure-JDK QR encoder (v1-5, ECC M)
     │   ├── gui/ServerWindow.java # Swing control window (IP picker, QR)
+    │   ├── gui/FolderPicker.java # folder dialog (JFileChooser is blank
+    │   │                         #   under JaCrossLaf — never use it)
     │   └── server/
     │       ├── TtDropServer.java  # HttpServer wiring, LAN addresses
     │       ├── Devices.java       # pairing codes, sessions, grants

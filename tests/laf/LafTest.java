@@ -65,6 +65,13 @@ public final class LafTest {
         JLabel cjk = new JLabel("檔案傳輸伺服器");
         check("CJK label renders glyphs", distinctColors(render(cjk, 220, 30)) > 1);
 
+        java.nio.file.Path tmp = java.nio.file.Files.createTempDirectory("laf-picker");
+        java.nio.file.Files.createDirectory(tmp.resolve("subfolder"));
+        ttdrop.gui.FolderPicker picker = new ttdrop.gui.FolderPicker(tmp, tmp);
+        check("folder picker renders with entries", distinctColors(render(picker, 460, 280)) > 2);
+        check("folder picker starts at the requested folder",
+                picker.currentFolder().equals(tmp));
+
         Tokens darkTokens = Themes.build(jacross.JaCross.BRAND_SEED, true, DesignLanguage.MATERIAL, font);
         UIManager.setLookAndFeel(new JaCrossLaf(darkTokens));
         BufferedImage darkButton = render(new JButton("Start"), 120, 40);
