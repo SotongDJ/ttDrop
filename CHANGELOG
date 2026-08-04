@@ -8,6 +8,30 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.15.0 — JaCross-themed GUI with embedded Noto Sans TC (2026-08-04)
+
+- The server window is now styled by an embedded Tier 0 subset of the
+  JaCross design system (pure java.desktop, new `jacross` package):
+  a semantic token layer with OKLab/CIE-L* tonal palettes generated
+  from a seed colour, and a BasicLookAndFeel-based `JaCrossLaf` with
+  rounded tonal buttons, Path2D check boxes, focus-aware field
+  borders, and a flat chevron combo box.
+- Design language follows the JaCross default policy: Fluent 2 on
+  Windows (small radii, stroked outlines), Material 3 elsewhere
+  (pill buttons, tonal surfaces). Dark mode follows the OS
+  (reg/defaults/gsettings probes, each optional and bounded, falling
+  back to light), and on Windows the OS accent colour seeds the
+  palette; the ttDrop brand blue is the fallback seed everywhere.
+- The GUI's UI font is an embedded Noto Sans TC Regular (SIL OFL,
+  subset OTF, licence shipped alongside): full Traditional Chinese
+  plus Latin coverage on every OS with no fallback boxes. This grows
+  the jar from ~65 KB to ~5 MB; headless mode loads neither Swing nor
+  the font.
+- New headless L&F test (`tests/laf/LafTest.java`): ≥4.5:1 contrast
+  across all four language×scheme combinations, CJK font coverage,
+  and offscreen renders of every themed control. Browser suite
+  unaffected and green.
+
 ## v0.14.0 — directory browsing, GitHub-style lists, bilingual README (2026-08-04)
 
 - New "Allow directory browsing" toggle (default OFF; GUI checkbox,

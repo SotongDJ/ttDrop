@@ -197,6 +197,24 @@ https://localhost:<port>/` must succeed with no `-k`.
 - The GUI's URL label is a clickable link: clicking it opens the URL in
   the user's default browser (`java.awt.Desktop.browse`, falling back
   to `xdg-open`/`open`/`rundll32` where Desktop is unsupported).
+- **GUI theming — the `jacross` package** (Tier 0 subset of the
+  JaCross design system): a token layer (`ColorRole`/`Tokens`/`Themes`)
+  with OKLab/CIE-L* tonal palettes (`Ok`, `TonalPalette`),
+  `JaCrossLaf extends BasicLookAndFeel` with delegates for the
+  controls ttDrop uses (button, combo box; check box via a Path2D
+  icon; fields via a shared focus-aware rounded border), and a
+  `Platform` probe (OS dark mode via reg/defaults/gsettings, Windows
+  accent via desktop property — each optional, 2s-bounded, quiet
+  fallback to light + brand seed `0x2563EB`). Policy: FLUENT on
+  Windows, MATERIAL elsewhere. The UI font is the embedded
+  **Noto Sans TC** Regular (subset OTF, ~5.7 MB — the dominant jar
+  weight; bold is derived synthetically). `Main` calls
+  `JaCross.detect()` off the EDT then `JaCross.apply()` on it, GUI
+  path only — headless mode never touches Swing or the font. Painters
+  read tokens via `UIManager.get("jacross.tokens")` at paint time;
+  UI-delegate classes must be referenced by class literal in
+  `JaCrossLaf` (string names alone would be dropped by the
+  reachability-based build). Verify with `tests/laf/`.
 - Keep the served file area and the transfer temporaries distinct from
   config, and make sure serving `/files/` never escapes the working
   directory (path traversal — see the security ground rule).
@@ -239,6 +257,12 @@ https://localhost:<port>/` must succeed with no `-k`.
 - **Java**, and it must run on Windows, macOS, and Linux. No OS-specific
   behavior without explicit cross-platform handling (paths, file names,
   line endings, default browsers, firewalls/ports).
+- **Pure JDK code, Tier 0+**: no third-party jars — the only non-JDK
+  artifact is data, not code: the embedded Noto Sans TC font (SIL OFL,
+  `src/main/resources/jacross/`, keep `OFL.txt` beside it). Any
+  OS-specific visual (dark mode, accent colour) must be a probed
+  enhancement with a pure-Java fallback, never a requirement — the
+  JaCross rule of the lowest rung.
 - The server serves everything the PWA needs; devices on the LAN must not
   need internet access for ttDrop to work.
 
@@ -372,6 +396,12 @@ QR tests live in `tests/qr/` (`npm install` there once, then
 live `/qr.png` endpoint. Run them for any change touching
 `ttdrop.util.QrCode` or `QrPngHandler`.
 
+L&F tests live in `tests/laf/` (single-file Java, headless-safe):
+`java -Djava.awt.headless=true -cp dist/ttdrop.jar tests/laf/LafTest.java`
+— token contrast (≥4.5:1) across all four language×scheme combos,
+embedded-font CJK coverage, and offscreen renders of every themed
+control. Run it for any change under `src/main/java/jacross/`.
+
 Browser tests live in `tests/browser/` (plain Node scripts, exit 0/1):
 upload, upload-resume, download-resume, folder-upload, cancel,
 fileops, fileops-disabled, zip-download, inline-view, and dir-browse
@@ -453,7 +483,11 @@ ttDrop/
 ├── pixi.lock             # pixi lockfile, all 4 platforms (tracked)
 ├── tests/browser/        # Node+Playwright E2E tests (see Testing)
 ├── tests/qr/             # QR encoder + /qr.png decoder tests
+├── tests/laf/            # headless JaCross L&F render/contrast test
 └── src/main/
+    ├── java/jacross/     # Tier 0 design system: tokens, palettes,
+    │   │                 #   Platform probe, JaCrossLaf (+ plaf/ delegates)
+    │   └── ...
     ├── java/ttdrop/
     │   ├── Main.java             # entry point; GUI or --headless
     │   ├── Config.java           # ~/.config/ttdrop/config.properties
@@ -468,16 +502,20 @@ ttDrop/
     │       ├── QrPngHandler.java  # /qr.png: QR of the site URL
     │       ├── CaCertHandler.java # /ca.crt: per-user CA download
     │       └── TlsSupport.java    # CA + server cert generation
-    └── resources/webroot/
-        ├── index.html            # app shell
-        ├── cert-help.html        # per-platform CA install guide
-        ├── style.css             # vanilla CSS, light/dark
-        ├── app.js                # UI, browser, transfer orchestration
-        ├── uploader.js           # upload worker (OPFS staging)
-        ├── downloader.js         # download worker (OPFS staging)
-        ├── sw.js                 # service worker (shell cache only)
-        ├── manifest.webmanifest  # PWA manifest
-        └── icon.svg              # app icon
+    └── resources/
+        ├── jacross/
+        │   ├── NotoSansTC-Regular.otf  # embedded UI font (SIL OFL)
+        │   └── OFL.txt                 # its licence — ships with the font
+        └── webroot/
+            ├── index.html            # app shell
+            ├── cert-help.html        # per-platform CA install guide
+            ├── style.css             # vanilla CSS, light/dark
+            ├── app.js                # UI, browser, transfer orchestration
+            ├── uploader.js           # upload worker (OPFS staging)
+            ├── downloader.js         # download worker (OPFS staging)
+            ├── sw.js                 # service worker (shell cache only)
+            ├── manifest.webmanifest  # PWA manifest
+            └── icon.svg              # app icon
 ```
 
 Build outputs go to `build/` and `dist/` (both git-ignored).
