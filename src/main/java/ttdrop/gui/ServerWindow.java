@@ -37,6 +37,7 @@ public final class ServerWindow extends JFrame {
     private final JTextField portField;
     private final javax.swing.JCheckBox httpsBox = new javax.swing.JCheckBox("HTTPS");
     private final javax.swing.JCheckBox autostartBox = new javax.swing.JCheckBox("Start on launch");
+    private final javax.swing.JCheckBox fileOpsBox = new javax.swing.JCheckBox("Allow browser file management");
     private final JButton toggleButton = new JButton("Start");
     private final JButton rootButton = new JButton("Change…");
     private final JLabel rootLabel = new JLabel();
@@ -55,6 +56,9 @@ public final class ServerWindow extends JFrame {
                 "Serve over TLS with a self-signed certificate (devices must accept it once)");
         this.autostartBox.setSelected(config.getAutostart(false));
         this.autostartBox.setToolTipText("Start the server automatically when ttDrop opens");
+        this.fileOpsBox.setSelected(server.isFileOpsEnabled());
+        this.fileOpsBox.setToolTipText(
+                "Let devices rename and delete files in the shared folder from their browser (off by default)");
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         JPanel main = new JPanel();
@@ -77,6 +81,9 @@ public final class ServerWindow extends JFrame {
         controls.add(toggleButton);
         controls.add(statusLabel);
         main.add(controls);
+        JPanel permissions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        permissions.add(fileOpsBox);
+        main.add(permissions);
         main.add(Box.createVerticalStrut(8));
 
         JPanel addressRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
@@ -93,6 +100,12 @@ public final class ServerWindow extends JFrame {
         toggleButton.addActionListener(e -> toggle());
         rootButton.addActionListener(e -> chooseRoot());
         addressBox.addActionListener(e -> updateUrl());
+        // Takes effect immediately, even while the server is running.
+        fileOpsBox.addActionListener(e -> {
+            server.setFileOpsEnabled(fileOpsBox.isSelected());
+            config.setFileOps(fileOpsBox.isSelected());
+            config.save();
+        });
 
         add(main, BorderLayout.CENTER);
         pack();
@@ -113,6 +126,7 @@ public final class ServerWindow extends JFrame {
         }
         java.nio.file.Path newRoot = chooser.getSelectedFile().toPath();
         server = new TtDropServer(newRoot);
+        server.setFileOpsEnabled(fileOpsBox.isSelected());
         config.setRoot(newRoot);
         config.save();
         rootLabel.setText("File root: " + server.getFileRoot());

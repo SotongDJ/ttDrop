@@ -26,14 +26,20 @@ import java.util.Map;
  */
 public final class FileOpsHandler implements HttpHandler {
     private final Path root;
+    private final java.util.function.BooleanSupplier enabled;
 
-    public FileOpsHandler(Path root) {
+    public FileOpsHandler(Path root, java.util.function.BooleanSupplier enabled) {
         this.root = root;
+        this.enabled = enabled;
     }
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
         try (ex) {
+            if (!enabled.getAsBoolean()) {
+                UploadHandler.sendJson(ex, 403, "{\"error\":\"file management is disabled on this server\"}");
+                return;
+            }
             if (!"POST".equals(ex.getRequestMethod())) {
                 ex.sendResponseHeaders(405, -1);
                 return;

@@ -21,14 +21,16 @@ JAVA=java
 [ -x "$REPO_ROOT/.pixi/envs/default/bin/java" ] && JAVA="$REPO_ROOT/.pixi/envs/default/bin/java"
 
 cd "$SERVE_DIR"
-"$JAVA" -jar "$REPO_ROOT/dist/ttdrop.jar" --headless --port "$PORT" "$SCHEME_FLAG" &
+# --fileops: the fileops test exercises rename/delete, which is
+# disabled by default; fileops-disabled.test.mjs covers the default.
+"$JAVA" -jar "$REPO_ROOT/dist/ttdrop.jar" --headless --port "$PORT" "$SCHEME_FLAG" --fileops &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 sleep 3
 
 cd "$REPO_ROOT/tests/browser"
 FAIL=0
-for test in upload.test.mjs upload-resume.test.mjs download-resume.test.mjs folder-upload.test.mjs cancel.test.mjs fileops.test.mjs; do
+for test in upload.test.mjs upload-resume.test.mjs download-resume.test.mjs folder-upload.test.mjs cancel.test.mjs fileops.test.mjs fileops-disabled.test.mjs; do
     echo "=== $test ==="
     TTDROP_PORT="$PORT" TTDROP_DIR="$SERVE_DIR" node "$test" || FAIL=1
 done

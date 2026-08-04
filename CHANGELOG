@@ -8,6 +8,19 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.9.0 — browser file management off by default (2026-08-04)
+
+- Browser rename/delete is now an explicit opt-in: a new
+  "Allow browser file management" toggle in the server window (takes
+  effect immediately, persisted) and `--fileops`/`--no-fileops` flags
+  for headless mode. Default OFF.
+- While disabled, `/api/files/` returns 403 and the PWA hides the
+  rename/delete buttons (the listing advertises `fileOps`).
+- "Start on launch" remains OFF by default (confirmed and documented).
+- New `fileops-disabled` browser test locking in the default posture;
+  the suite's shared server now opts in explicitly for the enabled-path
+  test.
+
 ## v0.8.0 — docs polish and suite hardening (2026-08-04)
 
 - README rewritten around the full feature set: resumable/cancellable

@@ -75,6 +75,16 @@ public final class Config {
         props.setProperty("root", root.toAbsolutePath().toString());
     }
 
+    /** Browser file management (rename/delete). Default OFF. */
+    public boolean getFileOps(boolean fallback) {
+        String value = props.getProperty("fileOps");
+        return value == null ? fallback : Boolean.parseBoolean(value);
+    }
+
+    public void setFileOps(boolean fileOps) {
+        props.setProperty("fileOps", String.valueOf(fileOps));
+    }
+
     public boolean getAutostart(boolean fallback) {
         String value = props.getProperty("autostart");
         return value == null ? fallback : Boolean.parseBoolean(value);
