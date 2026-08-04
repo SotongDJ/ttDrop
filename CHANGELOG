@@ -1,0 +1,69 @@
+# ttDrop Changelog
+
+This file is the changelog and the single source of truth for GitHub
+release notes: `.github/workflows/release.yml` parses each `## vX.Y.Z`
+section heading into the release title and its body into the release
+notes. Batches add bullets under "Unreleased"; cutting a release renames
+that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
+
+## Unreleased
+
+- Maintain this CHANGELOG as the source for GitHub release notes.
+
+## v0.2.1 — resumable downloads and config persistence (2026-08-04)
+
+- `/files/` now answers `HEAD` and single-range `Range: bytes=a-b`
+  requests (206/416, `Content-Range`, `Accept-Ranges`) with
+  `"size-mtime"` ETags.
+- New `downloader.js` PWA worker: fetches chunks in parallel via Range
+  requests into OPFS staging with per-chunk completion tracking,
+  resumes across page reloads, and restarts stale transfers on ETag
+  mismatch. Delivery hands the staged file to the browser as a blob-URL
+  save; staging cleanup is deferred to the next page load because the
+  save streams lazily from OPFS.
+- Plain link-navigation fallback where OPFS is unavailable.
+- New `ttdrop.Config`: settings persisted at
+  `~/.config/ttdrop/config.properties` (last used port, saved when the
+  GUI starts the server, loaded as the startup default).
+
+## v0.2.0 — chunked resumable upload engine (2026-08-04)
+
+- New upload API under `/api/upload/`: `init`, `chunk`, `status`,
+  `complete`, with metadata via query parameters and raw chunk bodies.
+- On-disk staging in `<fileRoot>/.ttdrop-part/<key>/` (hidden from
+  listings): atomic chunk writes, exact-size validation, collision-safe
+  final assembly, sanitized file names; partial transfers survive
+  server restarts.
+- New `uploader.js` PWA worker: stages selected files into OPFS via
+  sync access handles, uploads missing chunks with a parallel pool
+  (default 3 × 4 MiB) and retry/backoff, resumes unfinished transfers
+  on page load, falls back to direct `File` slicing without OPFS.
+- Upload progress UI in the app; transfers keyed by a stable
+  client-side hash of `name|size|lastModified`.
+
+## v0.1.2 — PWA shell (2026-08-04)
+
+- App shell in vanilla JS/CSS: drag-and-drop file picker, server file
+  browser with breadcrumbs driven by the `/files/` JSON listings.
+- Installable PWA: web manifest, SVG icon, service worker caching the
+  shell only (never file data), registered in secure contexts only.
+- Light/dark theming via `prefers-color-scheme`.
+
+## v0.1.1 — Java server core (2026-08-04)
+
+- Pure-JDK server (`com.sun.net.httpserver`, virtual-thread executor):
+  the working directory is the file root served at `/files/` with JSON
+  directory listings, streamed downloads, and path-traversal rejection.
+- PWA webroot served on demand from resources embedded in the jar —
+  never from disk.
+- Swing control window (port, start/stop, localhost and LAN URLs) plus
+  `--headless` mode for servers without a display.
+
+## v0.1.0 — pixi environment scaffold (2026-08-04)
+
+- Toolchain managed by pixi: OpenJDK 25 from conda-forge, lockfile
+  solved for linux-64, win-64, osx-64, and osx-arm64; `pixi.toml` and
+  `pixi.lock` are git-tracked.
+- `build`/`run`/`clean` tasks producing `dist/ttdrop.jar` with the
+  embedded webroot.
+- Initial source layout with placeholder entry point and webroot page.

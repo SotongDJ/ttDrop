@@ -181,6 +181,10 @@ keep the sections below current in the same commit as any change.
   when asked to.
 - Commit messages in the imperative mood ("Add drop handler", not "Added
   drop handler"), short subject line, optional body explaining *why*.
+- **Every batch updates `CHANGELOG`** (no file extension): add bullets
+  describing the batch under the `## Unreleased` section in the same
+  commit. CHANGELOG is the single source of truth for GitHub release
+  notes — see Releases.
 - **Every batch of modifications ends with a commit — nothing more.**
   Never leave finished work uncommitted, but do not push automatically:
   **push and pull requests happen on demand only**, when the maintainer
@@ -287,21 +291,31 @@ Facts future agent sessions will otherwise rediscover the hard way:
 
 ## Releases
 
-Tags v0.1.0–v0.2.1 and their GitHub releases exist on origin, created by
-`.github/workflows/release.yml` (manually triggered via
-workflow_dispatch). That workflow is the way to cut releases from cloud
-sessions, where tag pushes are blocked: add the new tag (full commit
-SHA, title, notes) to the workflow's `create` list — it is idempotent
-and skips existing releases — merge to `main`, and trigger it. It also
-builds `dist/ttdrop.jar` (Temurin 25) and attaches it to the newest
-release. From a local device, plain `git tag` + `git push origin <tag>`
-plus a release created by hand works just as well.
+`CHANGELOG` (no file extension, repo root) is the changelog and the
+single source of truth for GitHub release notes. Section format:
+`## vX.Y.Z — title (YYYY-MM-DD)` followed by bullet notes; batches
+accumulate bullets under `## Unreleased`.
+
+To cut a release: rename `## Unreleased` to the new version section
+(start a fresh empty `## Unreleased` above it), bump `version` in
+`pixi.toml`, merge to `main`, then trigger
+`.github/workflows/release.yml` (workflow_dispatch). The workflow
+parses CHANGELOG and, per version section, updates the existing GitHub
+release's title/notes or creates a missing release tagged at the
+triggering commit — so add one new version section per run and trigger
+from the merge commit that should carry the tag. It also builds
+`dist/ttdrop.jar` (Temurin 25) and attaches it to the newest release.
+Editing past notes is fine: edit CHANGELOG, merge, re-trigger — the
+sync is idempotent. This workflow exists because cloud sessions cannot
+push tags; from a local device, plain `git tag` + `git push origin
+<tag>` works too, but keep CHANGELOG authoritative for the notes.
 
 ## Directory map
 
 ```
 ttDrop/
 ├── AGENT.md              # this guide
+├── CHANGELOG             # changelog; source of GitHub release notes
 ├── LICENSE               # GPL-3.0
 ├── README.md             # user-facing description and quick start
 ├── .gitignore            # Java template + pixi env + build outputs
