@@ -55,6 +55,9 @@ public final class FilesHandler implements HttpHandler {
         try (Stream<Path> entries = Files.list(dir)) {
             boolean first = true;
             for (Path p : (Iterable<Path>) entries.sorted()::iterator) {
+                if (p.getFileName().toString().equals(UploadHandler.PART_DIR)) {
+                    continue;
+                }
                 if (!first) {
                     json.append(',');
                 }

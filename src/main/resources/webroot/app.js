@@ -67,17 +67,93 @@ fileInput.addEventListener("change", () => {
 );
 dropZone.addEventListener("drop", (e) => queueFiles(e.dataTransfer.files));
 
+/* ---------- transfer engine ---------- */
+
+const CHUNK_SIZE = 4 * 1024 * 1024;
+const CONCURRENCY = 3;
+const transfers = new Map();
+
+/* Stable hex key from file identity — resumes match across reloads.
+ * FNV-1a with two seeds; an identifier, not a security digest, so it
+ * works in insecure LAN contexts where crypto.subtle is unavailable. */
+function transferKey(name, size, lastModified) {
+  const input = `${name}|${size}|${lastModified}`;
+  let out = "";
+  for (const seed of [0x811c9dc5, 0x01000193 ^ 0x5bd1e995]) {
+    let h = seed >>> 0;
+    for (let i = 0; i < input.length; i++) {
+      h ^= input.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    out += h.toString(16).padStart(8, "0");
+  }
+  return out;
+}
+
+function addTransferRow(key, name, size) {
+  const li = el("li");
+  const progress = document.createElement("progress");
+  progress.max = 1;
+  progress.value = 0;
+  const status = el("span", "muted", "starting");
+  li.append(el("span", "name", name), el("span", "size", formatSize(size)), progress, status);
+  sendList.append(li);
+  transfers.set(key, { progress, status, li });
+}
+
+function spawnWorker(message) {
+  const worker = new Worker("/uploader.js");
+  worker.onmessage = (e) => {
+    const msg = e.data;
+    const row = transfers.get(msg.key);
+    if (!row) return;
+    if (msg.type === "progress") {
+      row.progress.value = msg.total ? msg.done / msg.total : 1;
+      row.status.textContent = `${Math.round(100 * row.progress.value)}%`;
+    } else if (msg.type === "done") {
+      row.progress.value = 1;
+      row.status.textContent = `sent as ${msg.name}`;
+      row.status.className = "status-ok";
+      worker.terminate();
+      loadDir(currentDir).catch(showOffline);
+    } else if (msg.type === "error") {
+      row.status.textContent = msg.message;
+      row.status.className = "status-err";
+      worker.terminate();
+    }
+  };
+  worker.postMessage(message);
+}
+
 function queueFiles(files) {
   for (const file of files) {
-    const li = el("li");
-    li.append(el("span", "name", file.name), el("span", "size", formatSize(file.size)));
-    const status = el("span", "muted", "queued");
-    li.append(status);
-    sendList.append(li);
-    // Transfer engine (chunked, resumable, OPFS-staged) arrives in the
-    // next batch; for now selections are only queued visually.
+    const key = transferKey(file.name, file.size, file.lastModified);
+    if (transfers.has(key)) continue;
+    addTransferRow(key, file.name, file.size);
+    spawnWorker({ cmd: "upload", key, file, chunkSize: CHUNK_SIZE, concurrency: CONCURRENCY });
   }
 }
+
+/* Resume transfers whose bytes are still staged in OPFS from a previous
+ * page load. Silently does nothing where OPFS is unavailable. */
+async function resumePending() {
+  if (!navigator.storage || !navigator.storage.getDirectory) return;
+  try {
+    const root = await navigator.storage.getDirectory();
+    const dir = await root.getDirectoryHandle("ttdrop-outgoing");
+    for await (const [entryName, handle] of dir.entries()) {
+      if (!entryName.endsWith(".json")) continue;
+      const meta = JSON.parse(await (await handle.getFile()).text());
+      if (transfers.has(meta.key)) continue;
+      addTransferRow(meta.key, meta.name, meta.size);
+      spawnWorker({ cmd: "resume", key: meta.key, concurrency: CONCURRENCY });
+    }
+  } catch {
+    /* no staging directory yet — nothing to resume */
+  }
+}
+
+resumePending();
 
 /* ---------- server file browser ---------- */
 

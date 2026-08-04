@@ -32,6 +32,7 @@ public final class TtDropServer {
         http = HttpServer.create(new InetSocketAddress(port), 0);
         http.createContext("/", new WebRootHandler());
         http.createContext("/files/", new FilesHandler(fileRoot));
+        http.createContext("/api/upload/", new UploadHandler(fileRoot));
         http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         http.start();
     }

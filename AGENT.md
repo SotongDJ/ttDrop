@@ -45,10 +45,33 @@ is a core design requirement, in both directions (upload and download):
   and don't exhaust RAM. Prefer `createSyncAccessHandle()` inside Web
   Workers for chunk I/O (the widely supported OPFS write path, including
   Safari); clean up OPFS temporaries once a transfer completes.
-- The concrete transfer protocol (endpoints, chunk metadata, integrity
-  checks, session/transfer identifiers) is not implemented yet. Whoever
-  implements it must document it in this file and keep the PWA and Java
-  server implementations in lockstep.
+- **Upload protocol** (implemented; keep PWA and server in lockstep):
+  - `POST /api/upload/init?key=&name=&size=&chunkSize=` → creates or
+    finds the staging area; returns `{"key","chunkCount","have":[...]}`
+    where `have` lists chunk indexes already stored (resume).
+  - `PUT /api/upload/chunk?key=&index=n` (raw body) → stores one chunk;
+    written to a temp file then atomically renamed, so parallel chunk
+    uploads and crashes are safe. Exact-size check per chunk.
+  - `GET /api/upload/status?key=` → same shape as init's response.
+  - `POST /api/upload/complete?key=` → verifies all chunks, assembles
+    into the file root under a collision-safe name (`name (n).ext`),
+    deletes staging; returns `{"name":finalName}`. 409 + missing index
+    if incomplete.
+  - The `key` is a client-derived stable identifier (lowercase hex,
+    8–64 chars) hashed from `name|size|lastModified` — it makes resume
+    match across page reloads. It is an identifier, not a security
+    digest (crypto.subtle is unavailable in insecure LAN contexts).
+  - Server staging lives in `<fileRoot>/.ttdrop-part/<key>/` (hidden
+    from `/files/` listings) so partial transfers survive server
+    restarts and final assembly is an atomic same-filesystem move.
+  - PWA side: `uploader.js` Web Worker stages the file into OPFS
+    (`ttdrop-outgoing/<key>.bin` + `.json`, sync access handles), then
+    uploads missing chunks with a small parallel pool (default 3 × 4 MiB)
+    and retry/backoff; `app.js` `resumePending()` rescans OPFS on load
+    and resumes unfinished transfers. Where OPFS is unavailable the
+    worker falls back to slicing the original `File` (no reload-resume).
+  - File names are sanitized server-side (separators/reserved characters
+    stripped, no traversal, 255-char cap).
 
 ### Server runtime layout
 
