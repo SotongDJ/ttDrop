@@ -285,22 +285,17 @@ Facts future agent sessions will otherwise rediscover the hard way:
   automatically; harmless "Picked up JAVA_TOOL_OPTIONS" lines appear on
   stderr.
 
-## Release history (tag ↔ commit)
+## Releases
 
-Tags for these batches could not be pushed from the cloud session (see
-above). Recreate them on a local clone and push from there:
-
-```sh
-git tag -a v0.1.0 -m "Batch 1: pixi environment scaffold and source layout" 39d4b15
-git tag -a v0.1.1 -m "Batch 2: Java server core" 60e2827
-git tag -a v0.1.2 -m "Batch 3: PWA shell" 6e2a63b
-git tag -a v0.2.0 -m "Batch 4: chunked resumable upload engine" 1e449c3
-git tag -a v0.2.1 -m "Batch 5: resumable downloads and config persistence" 3e235da
-git push origin v0.1.0 v0.1.1 v0.1.2 v0.2.0 v0.2.1
-```
-
-Remove each line from this list once its tag exists on origin; delete
-the section when none remain.
+Tags v0.1.0–v0.2.1 and their GitHub releases exist on origin, created by
+`.github/workflows/release.yml` (manually triggered via
+workflow_dispatch). That workflow is the way to cut releases from cloud
+sessions, where tag pushes are blocked: add the new tag (full commit
+SHA, title, notes) to the workflow's `create` list — it is idempotent
+and skips existing releases — merge to `main`, and trigger it. It also
+builds `dist/ttdrop.jar` (Temurin 25) and attaches it to the newest
+release. From a local device, plain `git tag` + `git push origin <tag>`
+plus a release created by hand works just as well.
 
 ## Directory map
 
