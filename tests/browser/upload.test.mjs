@@ -1,6 +1,6 @@
 /* Uploads a 10 MiB file through the PWA UI and verifies OPFS staging,
  * the on-disk result hash, and the refreshed listing. */
-import { launchBrowser, BASE, SERVE_DIR } from "./lib.mjs";
+import { launchBrowser, CONTEXT_OPTIONS, BASE, SCHEME, SERVE_DIR } from "./lib.mjs";
 import { createHash, randomBytes } from "node:crypto";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -12,10 +12,17 @@ writeFileSync(srcPath, payload);
 const srcHash = createHash("sha256").update(payload).digest("hex");
 
 const browser = await launchBrowser();
-const page = await browser.newPage();
+const page = await (await browser.newContext(CONTEXT_OPTIONS)).newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-page.on("console", (m) => { if (m.type() === "error") errors.push(`console: ${m.text()}`); });
+page.on("console", (m) => {
+  if (m.type() !== "error") return;
+  // Over self-signed HTTPS, Chromium refuses the service-worker script
+  // (SW needs a fully trusted cert); the app degrades gracefully, so
+  // this specific error is expected — everything else still fails the test.
+  if (SCHEME === "https" && m.text().includes("SSL certificate error")) return;
+  errors.push(`console: ${m.text()}`);
+});
 
 await page.goto(BASE, { waitUntil: "networkidle" });
 

@@ -23,11 +23,12 @@ and page reloads.
 3. Run the jar (double-click, or `java -jar ttdrop.jar`). Press
    **Start** in the window — or run `java -jar ttdrop.jar --headless`
    on machines without a display (`--port <n>` to override the port,
-   default 4646).
-4. On another device, open the URL the window shows
-   (`http://<your-ip>:4646/`). Drop files onto the page to send; tap
-   listed files to download. On supporting browsers the page can be
-   installed as an app.
+   default 4646; `--http` to disable TLS).
+4. On another device, open the URL the window shows — or scan the QR
+   code it displays (`https://<your-ip>:4646/`). Accept the one-time
+   certificate warning (ttDrop generates its own self-signed
+   certificate; nothing leaves your network). Drop files onto the page
+   to send; tap listed files to download.
 
 ## How transfers work
 

@@ -20,22 +20,44 @@ import java.util.concurrent.Executors;
 public final class TtDropServer {
     private final Path fileRoot;
     private HttpServer http;
+    private boolean https;
 
     public TtDropServer(Path fileRoot) {
         this.fileRoot = fileRoot.toAbsolutePath().normalize();
     }
 
     public synchronized void start(int port) throws IOException {
+        start(port, false);
+    }
+
+    public synchronized void start(int port, boolean useHttps) throws IOException {
         if (http != null) {
             throw new IllegalStateException("server already running");
         }
-        http = HttpServer.create(new InetSocketAddress(port), 0);
+        if (useHttps) {
+            var server = com.sun.net.httpserver.HttpsServer.create(new InetSocketAddress(port), 0);
+            server.setHttpsConfigurator(new com.sun.net.httpserver.HttpsConfigurator(
+                    TlsSupport.sslContext(ttdrop.Config.dir())));
+            http = server;
+        } else {
+            http = HttpServer.create(new InetSocketAddress(port), 0);
+        }
+        this.https = useHttps;
         http.createContext("/", new WebRootHandler());
         http.createContext("/files/", new FilesHandler(fileRoot));
         http.createContext("/api/upload/", new UploadHandler(fileRoot));
-        http.createContext("/qr.png", new QrPngHandler());
+        http.createContext("/qr.png", new QrPngHandler(this::scheme));
         http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         http.start();
+    }
+
+    public synchronized boolean isHttps() {
+        return https;
+    }
+
+    /** URL scheme of the running server, for building shareable URLs. */
+    public synchronized String scheme() {
+        return https ? "https" : "http";
     }
 
     public synchronized void stop() {

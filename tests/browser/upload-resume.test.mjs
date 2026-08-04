@@ -1,6 +1,6 @@
 /* Interrupts an upload after one chunk, reloads the page, and verifies
  * the transfer resumes from OPFS sending only the missing chunks. */
-import { launchBrowser, BASE, SERVE_DIR } from "./lib.mjs";
+import { launchBrowser, CONTEXT_OPTIONS, BASE, SERVE_DIR } from "./lib.mjs";
 import { createHash, randomBytes } from "node:crypto";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -12,7 +12,7 @@ writeFileSync(srcPath, payload);
 const srcHash = createHash("sha256").update(payload).digest("hex");
 
 const browser = await launchBrowser();
-const context = await browser.newContext();
+const context = await browser.newContext(CONTEXT_OPTIONS);
 const page = await context.newPage();
 
 let allowed = 0;

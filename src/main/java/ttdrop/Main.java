@@ -26,14 +26,17 @@ public final class Main {
     public static void main(String[] args) throws IOException, InterruptedException {
         Config config = Config.load();
         int port = config.getPort(DEFAULT_PORT);
+        boolean https = config.getHttps(true);
         boolean headless = false;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--port" -> port = Integer.parseInt(args[++i]);
                 case "--headless" -> headless = true;
+                case "--https" -> https = true;
+                case "--http" -> https = false;
                 default -> {
                     System.err.println("Unknown argument: " + args[i]);
-                    System.err.println("Usage: java -jar ttdrop.jar [--port <n>] [--headless]");
+                    System.err.println("Usage: java -jar ttdrop.jar [--port <n>] [--headless] [--https|--http]");
                     System.exit(2);
                 }
             }
@@ -44,18 +47,22 @@ public final class Main {
 
         if (headless || GraphicsEnvironment.isHeadless()) {
             try {
-                server.start(port);
+                server.start(port, https);
             } catch (java.net.BindException be) {
                 int freePort = TtDropServer.findFreePort();
                 System.err.println("Port " + port + " is already in use; using free port " + freePort);
-                server.start(freePort);
+                server.start(freePort, https);
             }
-            System.out.println("ttDrop serving " + fileRoot + " on port " + server.getPort());
+            System.out.println("ttDrop serving " + fileRoot
+                    + " at " + server.scheme() + "://localhost:" + server.getPort() + "/"
+                    + " on port " + server.getPort());
             Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
             Thread.currentThread().join();
         } else {
             final int guiPort = port;
-            javax.swing.SwingUtilities.invokeLater(() -> new ServerWindow(server, guiPort, config).setVisible(true));
+            final boolean guiHttps = https;
+            javax.swing.SwingUtilities.invokeLater(() ->
+                    new ServerWindow(server, guiPort, guiHttps, config).setVisible(true));
         }
     }
 }
