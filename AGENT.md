@@ -181,13 +181,19 @@ keep the sections below current in the same commit as any change.
   when asked to.
 - Commit messages in the imperative mood ("Add drop handler", not "Added
   drop handler"), short subject line, optional body explaining *why*.
-- **Every batch of modifications must be completed and published — never
-  leave finished work sitting uncommitted or unpushed:**
-  - **Code changes** (alone or with docs): finish the batch with
-    **commit + tag + push** — push the branch and the tag
-    (`git push -u origin <branch-name>` and `git push origin <tag>`).
-  - **Docs-only changes** (no code touched): finish the batch with
-    **commit + push** — no tag.
+- **Every batch of modifications ends with a commit — nothing more.**
+  Never leave finished work uncommitted, but do not push automatically:
+  **push and pull requests happen on demand only**, when the maintainer
+  asks for them.
+  - Exception: in an ephemeral environment (e.g. a Claude Code cloud
+    session, where the container and its commits are discarded after the
+    session), push the working branch before the session ends so the
+    work is not lost. This exception covers branch pushes only — never
+    tags, and never opening a PR unasked.
+- **Tags are not created during development batches.** They are
+  generated on the maintainer's local device: after cloning or pulling
+  the repo there, create annotated tags from the commit history (batch
+  and milestone commits) and push them to origin from that device.
 - **Tag convention:** annotated semver tags `vMAJOR.MINOR.PATCH`
   (e.g. `v0.1.0`). Bump PATCH for an ordinary batch, MINOR for a
   feature milestone, MAJOR for breaking/protocol changes. Keep the
