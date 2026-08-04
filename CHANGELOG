@@ -8,6 +8,16 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.11.0 — download folders as zip (2026-08-04)
+
+- Every folder in the server list has a ⬇ button that downloads it as
+  a zip, streamed on the fly (`GET /api/zip?path=`; empty path zips the
+  whole shared folder). Pure `java.util.zip`, nothing staged on disk,
+  transfer staging excluded, read-only so independent of the
+  file-management toggle.
+- New `zip-download` browser test verifying the archive name and
+  entries end to end.
+
 ## v0.10.0 — per-platform certificate install guide (2026-08-04)
 
 - New `/cert-help.html` page (embedded, offline-capable) with
