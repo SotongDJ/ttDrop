@@ -61,6 +61,29 @@ public final class Config {
         props.setProperty("port", String.valueOf(port));
     }
 
+    /** Optional persisted file-root override; null when unset/invalid. */
+    public Path getRoot() {
+        String value = props.getProperty("root");
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        Path root = Path.of(value);
+        return Files.isDirectory(root) ? root : null;
+    }
+
+    public void setRoot(Path root) {
+        props.setProperty("root", root.toAbsolutePath().toString());
+    }
+
+    public boolean getAutostart(boolean fallback) {
+        String value = props.getProperty("autostart");
+        return value == null ? fallback : Boolean.parseBoolean(value);
+    }
+
+    public void setAutostart(boolean autostart) {
+        props.setProperty("autostart", String.valueOf(autostart));
+    }
+
     public boolean getHttps(boolean fallback) {
         String value = props.getProperty("https");
         return value == null ? fallback : Boolean.parseBoolean(value);

@@ -32,11 +32,14 @@ import ttdrop.util.QrCode;
  * camera-equipped devices open the site by scanning.
  */
 public final class ServerWindow extends JFrame {
-    private final TtDropServer server;
+    private TtDropServer server;
     private final Config config;
     private final JTextField portField;
     private final javax.swing.JCheckBox httpsBox = new javax.swing.JCheckBox("HTTPS");
+    private final javax.swing.JCheckBox autostartBox = new javax.swing.JCheckBox("Start on launch");
     private final JButton toggleButton = new JButton("Start");
+    private final JButton rootButton = new JButton("Change…");
+    private final JLabel rootLabel = new JLabel();
     private final JLabel statusLabel = new JLabel("Stopped");
     private final JComboBox<String> addressBox = new JComboBox<>();
     private final JLabel urlLabel = new JLabel(" ");
@@ -50,21 +53,27 @@ public final class ServerWindow extends JFrame {
         this.httpsBox.setSelected(initialHttps);
         this.httpsBox.setToolTipText(
                 "Serve over TLS with a self-signed certificate (devices must accept it once)");
+        this.autostartBox.setSelected(config.getAutostart(false));
+        this.autostartBox.setToolTipText("Start the server automatically when ttDrop opens");
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         JPanel main = new JPanel();
         main.setLayout(new BoxLayout(main, BoxLayout.Y_AXIS));
         main.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
 
-        JLabel rootLabel = new JLabel("File root: " + server.getFileRoot());
+        rootLabel.setText("File root: " + server.getFileRoot());
         rootLabel.setFont(rootLabel.getFont().deriveFont(Font.PLAIN));
-        main.add(rootLabel);
+        JPanel rootRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        rootRow.add(rootLabel);
+        rootRow.add(rootButton);
+        main.add(rootRow);
         main.add(Box.createVerticalStrut(8));
 
         JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         controls.add(new JLabel("Port:"));
         controls.add(portField);
         controls.add(httpsBox);
+        controls.add(autostartBox);
         controls.add(toggleButton);
         controls.add(statusLabel);
         main.add(controls);
@@ -82,11 +91,32 @@ public final class ServerWindow extends JFrame {
         addressBox.setVisible(false);
         qrPanel.setVisible(false);
         toggleButton.addActionListener(e -> toggle());
+        rootButton.addActionListener(e -> chooseRoot());
         addressBox.addActionListener(e -> updateUrl());
 
         add(main, BorderLayout.CENTER);
         pack();
         setLocationRelativeTo(null);
+
+        if (autostartBox.isSelected()) {
+            javax.swing.SwingUtilities.invokeLater(this::toggle);
+        }
+    }
+
+    /** Pick a new file root (only while stopped); persisted in config. */
+    private void chooseRoot() {
+        javax.swing.JFileChooser chooser = new javax.swing.JFileChooser(server.getFileRoot().toFile());
+        chooser.setFileSelectionMode(javax.swing.JFileChooser.DIRECTORIES_ONLY);
+        chooser.setDialogTitle("Choose the folder ttDrop shares");
+        if (chooser.showOpenDialog(this) != javax.swing.JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        java.nio.file.Path newRoot = chooser.getSelectedFile().toPath();
+        server = new TtDropServer(newRoot);
+        config.setRoot(newRoot);
+        config.save();
+        rootLabel.setText("File root: " + server.getFileRoot());
+        pack();
     }
 
     private void toggle() {
@@ -96,6 +126,7 @@ public final class ServerWindow extends JFrame {
             toggleButton.setText("Start");
             portField.setEnabled(true);
             httpsBox.setEnabled(true);
+            rootButton.setEnabled(true);
             addressBox.setVisible(false);
             qrPanel.setVisible(false);
             urlLabel.setText(" ");
@@ -142,11 +173,13 @@ public final class ServerWindow extends JFrame {
         server.start(port, httpsBox.isSelected());
         config.setPort(port);
         config.setHttps(httpsBox.isSelected());
+        config.setAutostart(autostartBox.isSelected());
         config.save();
         statusLabel.setText("Running");
         toggleButton.setText("Stop");
         portField.setEnabled(false);
         httpsBox.setEnabled(false);
+        rootButton.setEnabled(false);
 
         List<String> addresses = new ArrayList<>(TtDropServer.lanAddresses());
         addresses.add("localhost");
