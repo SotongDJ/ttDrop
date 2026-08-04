@@ -141,15 +141,20 @@ and ask the maintainer instead of proceeding.
 
 ## Current state of the repository
 
-The codebase is at the very beginning: the pixi environment, source
-layout, and a placeholder `ttdrop.Main` plus a placeholder webroot page
-exist, but the server and PWA described above are still the intended
-design, not yet implemented.
+Implemented and verified end to end (Playwright/Chromium against the
+running jar): the Java server (GUI + headless, embedded webroot,
+`/files/` with Range support, chunked upload API, config persistence)
+and the PWA (installable shell, chunked parallel resumable uploads and
+downloads staged in OPFS with reload-resume).
 
-Therefore: do not assume the existence of any module, build file, or
-directory that is not present on disk — verify with the actual file tree
-first. When the source tree, build system, or test setup is created,
-update the sections below in the same commit.
+Not yet implemented / open decisions: HTTPS for secure contexts on LAN
+devices (see Known gaps), folder uploads, transfer cancellation UI,
+deleting/renaming server files from the PWA, and a wired-in automated
+test suite (the Playwright tests currently live outside the repo).
+
+Do not assume the existence of any module, build file, or directory that
+is not present on disk — verify with the actual file tree first, and
+keep the sections below current in the same commit as any change.
 
 ## Ground rules
 
@@ -236,15 +241,30 @@ free browser JS/CSS.
 ttDrop/
 ├── AGENT.md              # this guide
 ├── LICENSE               # GPL-3.0
-├── README.md             # project title (needs a real description)
+├── README.md             # user-facing description and quick start
 ├── .gitignore            # Java template + pixi env + build outputs
 ├── .gitattributes        # pixi.lock merge/linguist settings
 ├── pixi.toml             # pixi workspace: deps, platforms, tasks (tracked)
 ├── pixi.lock             # pixi lockfile, all 4 platforms (tracked)
 └── src/main/
-    ├── java/ttdrop/      # Java server sources (entry: ttdrop.Main)
-    └── resources/
-        └── webroot/      # PWA assets, embedded into the jar as-is
+    ├── java/ttdrop/
+    │   ├── Main.java             # entry point; GUI or --headless
+    │   ├── Config.java           # ~/.config/ttdrop/config.properties
+    │   ├── gui/ServerWindow.java # Swing control window
+    │   └── server/
+    │       ├── TtDropServer.java  # HttpServer wiring, LAN addresses
+    │       ├── WebRootHandler.java# embedded PWA assets from the jar
+    │       ├── FilesHandler.java  # /files/: listings, Range downloads
+    │       └── UploadHandler.java # /api/upload/: chunked resumable
+    └── resources/webroot/
+        ├── index.html            # app shell
+        ├── style.css             # vanilla CSS, light/dark
+        ├── app.js                # UI, browser, transfer orchestration
+        ├── uploader.js           # upload worker (OPFS staging)
+        ├── downloader.js         # download worker (OPFS staging)
+        ├── sw.js                 # service worker (shell cache only)
+        ├── manifest.webmanifest  # PWA manifest
+        └── icon.svg              # app icon
 ```
 
 Build outputs go to `build/` and `dist/` (both git-ignored).
@@ -252,11 +272,15 @@ Update this map when the source tree grows.
 
 ## Known gaps / good first tasks
 
-- README.md needs a real description (the "What ttDrop is" section above
-  is a starting point), usage instructions, and a license notice.
-- The server is a placeholder `Main` — GUI, HTTP server, transfer
-  protocol, and the real PWA are still to be implemented.
 - Serving over plain HTTP means non-localhost devices (e.g. a phone on
   the LAN) do not get a secure context, which blocks service workers and
-  OPFS in the browser. Decide how to handle this (self-signed HTTPS,
-  graceful degradation, or both) and document the decision here.
+  OPFS in the browser — transfers work but without reload-resume or
+  install. Decide how to handle this (self-signed HTTPS, graceful
+  degradation, or both) and document the decision here.
+- Wire the Playwright browser tests (upload, upload-resume,
+  download-resume) into the repo as a pixi task so every batch can run
+  them; they currently exist only as session scratch files.
+- Folder uploads (directory picker / relative paths), transfer
+  cancellation, and delete/rename of server files from the PWA.
+- GUI conveniences: choose file root from the window, QR code for the
+  LAN URL, autostart option.
