@@ -12,6 +12,18 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 - README rewritten around the released jar: download from the latest
   GitHub release, headless usage, development section linking AGENT.md,
   CHANGELOG, and the browser test suite.
+- GUI: address picker listing the machine's local IPs (NetworkInterface,
+  with `ip addr`/`ipconfig`/`ifconfig` parsing as fallback) and a QR
+  code of the selected URL so camera devices open the site by scanning.
+- New `/qr.png` endpoint: QR PNG of the requesting client's own URL
+  (Host-derived), `?text=` override; pure-JDK QR encoder (byte mode,
+  versions 1–5, ECC M) verified against an independent decoder — new
+  `tests/qr/` suite.
+- PWA: lazy "Share this page via QR" section in the footer using
+  `/qr.png`.
+- Port-conflict handling: when the chosen port is taken by another
+  program, the GUI offers an OS-assigned free port and headless mode
+  falls back to one automatically.
 
 ## v0.2.1 — resumable downloads and config persistence (2026-08-04)
 

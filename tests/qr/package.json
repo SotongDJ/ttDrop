@@ -1,0 +1,9 @@
+{
+  "name": "ttdrop-qr-tests",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "jsqr": "^1.4.0",
+    "pngjs": "^7.0.0"
+  }
+}

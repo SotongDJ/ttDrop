@@ -33,6 +33,7 @@ public final class TtDropServer {
         http.createContext("/", new WebRootHandler());
         http.createContext("/files/", new FilesHandler(fileRoot));
         http.createContext("/api/upload/", new UploadHandler(fileRoot));
+        http.createContext("/qr.png", new QrPngHandler());
         http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         http.start();
     }
@@ -56,7 +57,12 @@ public final class TtDropServer {
         return fileRoot;
     }
 
-    /** Addresses other devices on the LAN can use to reach this server. */
+    /**
+     * Addresses other devices on the LAN can use to reach this server.
+     * Primary source is {@link NetworkInterface} (the same data
+     * {@code ip addr}/{@code ipconfig} report); when that yields nothing
+     * (odd VPN/container setups), falls back to parsing those commands.
+     */
     public static List<String> lanAddresses() {
         List<String> out = new ArrayList<>();
         try {
@@ -71,8 +77,48 @@ public final class TtDropServer {
                 }
             }
         } catch (IOException ignored) {
-            // best effort: no LAN address list, localhost still works
+            // fall through to the command-based fallback below
+        }
+        if (out.isEmpty()) {
+            boolean windows = System.getProperty("os.name", "").toLowerCase().contains("win");
+            for (String[] cmd : windows
+                    ? new String[][] {{"ipconfig"}}
+                    : new String[][] {{"ip", "addr"}, {"ifconfig"}}) {
+                out.addAll(parseIpv4FromCommand(cmd));
+                if (!out.isEmpty()) {
+                    break;
+                }
+            }
         }
         return out;
+    }
+
+    private static List<String> parseIpv4FromCommand(String[] command) {
+        List<String> out = new ArrayList<>();
+        try {
+            Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+            String text = new String(process.getInputStream().readAllBytes());
+            process.waitFor();
+            var matcher = java.util.regex.Pattern
+                    .compile("(?<![\\d.])((?:\\d{1,3}\\.){3}\\d{1,3})(?![\\d.])")
+                    .matcher(text);
+            while (matcher.find()) {
+                String ip = matcher.group(1);
+                if (!ip.startsWith("127.") && !ip.startsWith("0.") && !ip.startsWith("255.")
+                        && !ip.endsWith(".255") && !out.contains(ip)) {
+                    out.add(ip);
+                }
+            }
+        } catch (IOException | InterruptedException ignored) {
+            // command missing or failed: nothing to add
+        }
+        return out;
+    }
+
+    /** An OS-assigned free TCP port, for fallback when the chosen port is taken. */
+    public static int findFreePort() throws IOException {
+        try (var socket = new java.net.ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
     }
 }
