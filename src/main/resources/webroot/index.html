@@ -20,8 +20,10 @@
       <h2>Send files</h2>
       <div id="drop-zone" tabindex="0" role="button"
            aria-label="Select or drop files to send">
-        <p><strong>Drop files here</strong> or tap to choose</p>
+        <p><strong>Drop files or folders here</strong> or tap to choose files</p>
+        <p><button id="folder-button" type="button">Choose a folder…</button></p>
         <input id="file-input" type="file" multiple hidden>
+        <input id="folder-input" type="file" webkitdirectory hidden>
       </div>
       <ul id="send-list" class="file-list"></ul>
     </section>

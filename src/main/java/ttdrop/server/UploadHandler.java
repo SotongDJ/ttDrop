@@ -79,7 +79,9 @@ public final class UploadHandler implements HttpHandler {
             ex.sendResponseHeaders(405, -1);
             return;
         }
-        String name = sanitize(q.get("name"));
+        // "path" carries a folder-upload relative path ("dir/sub/file.txt",
+        // forward slashes as browsers produce); "name" alone is a flat file.
+        String name = sanitizePath(q.containsKey("path") ? q.get("path") : q.get("name"));
         long size;
         long chunkSize;
         try {
@@ -203,7 +205,8 @@ public final class UploadHandler implements HttpHandler {
         }
         Files.move(assembling, target, StandardCopyOption.ATOMIC_MOVE);
         deleteRecursively(dir);
-        sendJson(ex, 200, "{\"name\":" + FilesHandler.quote(target.getFileName().toString()) + "}");
+        String rel = root.relativize(target).toString().replace('\\', '/');
+        sendJson(ex, 200, "{\"name\":" + FilesHandler.quote(rel) + "}");
     }
 
     /* ---------- helpers ---------- */
@@ -258,17 +261,55 @@ public final class UploadHandler implements HttpHandler {
         return name;
     }
 
-    /** Resolve the final destination, appending " (n)" before the extension on collision. */
-    private Path uniqueTarget(String name) {
-        Path target = root.resolve(name);
+    /**
+     * Sanitizes a relative path (forward-slash separated, as browsers
+     * produce for folder uploads): every segment is cleaned like a flat
+     * name, traversal is impossible by construction, depth is bounded.
+     * Returns the joined safe path, or null when invalid.
+     */
+    static String sanitizePath(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String[] segments = raw.split("/");
+        if (segments.length > 32) {
+            return null;
+        }
+        List<String> clean = new ArrayList<>();
+        for (String segment : segments) {
+            if (segment.isEmpty()) {
+                continue;
+            }
+            String name = sanitize(segment);
+            if (name == null) {
+                return null;
+            }
+            clean.add(name);
+        }
+        return clean.isEmpty() ? null : String.join("/", clean);
+    }
+
+    /**
+     * Resolve the final destination for a (possibly nested) safe relative
+     * path, creating parent directories and appending " (n)" before the
+     * extension on collision.
+     */
+    private Path uniqueTarget(String relPath) throws IOException {
+        Path target = root.resolve(relPath).normalize();
+        if (!target.startsWith(root)) {
+            throw new IOException("unsafe path escaped sanitization: " + relPath);
+        }
+        Path parent = target.getParent();
+        Files.createDirectories(parent);
         if (!Files.exists(target)) {
             return target;
         }
+        String name = target.getFileName().toString();
         int dot = name.lastIndexOf('.');
         String base = dot > 0 ? name.substring(0, dot) : name;
         String ext = dot > 0 ? name.substring(dot) : "";
         for (int n = 1; ; n++) {
-            Path candidate = root.resolve(base + " (" + n + ")" + ext);
+            Path candidate = parent.resolve(base + " (" + n + ")" + ext);
             if (!Files.exists(candidate)) {
                 return candidate;
             }

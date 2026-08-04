@@ -34,7 +34,8 @@ async function opfsDir() {
 /* Stage the file into OPFS so the transfer survives page reloads, then send.
  * If OPFS is unavailable (e.g. insecure LAN context), send straight from the
  * File — everything still works, only reload-resume is lost. */
-async function upload({ key, file, chunkSize, concurrency }) {
+async function upload({ key, file, relPath, chunkSize, concurrency }) {
+  const path = relPath || file.name;
   let staged = false;
   try {
     const dir = await opfsDir();
@@ -59,7 +60,7 @@ async function upload({ key, file, chunkSize, concurrency }) {
     try {
       meta.truncate(0);
       meta.write(new TextEncoder().encode(
-        JSON.stringify({ key, name: file.name, size: file.size, chunkSize })
+        JSON.stringify({ key, name: path, size: file.size, chunkSize })
       ), { at: 0 });
       meta.flush();
     } finally {
@@ -71,7 +72,7 @@ async function upload({ key, file, chunkSize, concurrency }) {
   }
   await transfer({
     key,
-    name: file.name,
+    name: path,
     size: file.size,
     chunkSize,
     concurrency,
@@ -94,7 +95,7 @@ async function transfer({ key, name, size, chunkSize, concurrency = 3, blob }) {
   }
 
   const initRes = await fetch(
-    `/api/upload/init?key=${key}&name=${encodeURIComponent(name)}&size=${size}&chunkSize=${chunkSize}`,
+    `/api/upload/init?key=${key}&path=${encodeURIComponent(name)}&size=${size}&chunkSize=${chunkSize}`,
     { method: "POST" }
   );
   if (!initRes.ok) throw new Error(`init failed (${initRes.status})`);

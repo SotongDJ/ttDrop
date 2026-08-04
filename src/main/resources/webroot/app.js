@@ -42,7 +42,12 @@ function el(tag, className, text) {
 
 /* ---------- file selection ---------- */
 
-dropZone.addEventListener("click", () => fileInput.click());
+const folderButton = document.getElementById("folder-button");
+const folderInput = document.getElementById("folder-input");
+
+dropZone.addEventListener("click", (e) => {
+  if (e.target !== folderButton) fileInput.click();
+});
 dropZone.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") {
     e.preventDefault();
@@ -52,6 +57,11 @@ dropZone.addEventListener("keydown", (e) => {
 fileInput.addEventListener("change", () => {
   queueFiles(fileInput.files);
   fileInput.value = "";
+});
+folderButton.addEventListener("click", () => folderInput.click());
+folderInput.addEventListener("change", () => {
+  queueFiles(folderInput.files);
+  folderInput.value = "";
 });
 
 ["dragenter", "dragover"].forEach((type) =>
@@ -66,7 +76,45 @@ fileInput.addEventListener("change", () => {
     dropZone.classList.remove("dragover");
   })
 );
-dropZone.addEventListener("drop", (e) => queueFiles(e.dataTransfer.files));
+dropZone.addEventListener("drop", (e) => {
+  // Folder drops need entry traversal; fall back to the flat file list
+  // where webkitGetAsEntry is unavailable.
+  const items = e.dataTransfer.items;
+  if (items && items.length && items[0].webkitGetAsEntry) {
+    collectDropped(items).then((entries) => queueEntries(entries));
+  } else {
+    queueFiles(e.dataTransfer.files);
+  }
+});
+
+/* Walk dropped directory trees into [{file, relPath}]. */
+async function collectDropped(items) {
+  const out = [];
+  const walk = async (entry, prefix) => {
+    if (entry.isFile) {
+      const file = await new Promise((res, rej) => entry.file(res, rej));
+      out.push({ file, relPath: prefix + file.name });
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      for (;;) {
+        const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+        if (!batch.length) break;
+        for (const child of batch) {
+          await walk(child, prefix + entry.name + "/");
+        }
+      }
+    }
+  };
+  const entries = [];
+  for (const item of items) {
+    const entry = item.webkitGetAsEntry();
+    if (entry) entries.push(entry);
+  }
+  for (const entry of entries) {
+    await walk(entry, "");
+  }
+  return out;
+}
 
 /* ---------- transfer engine ---------- */
 
@@ -127,11 +175,19 @@ function spawnWorker(message) {
 }
 
 function queueFiles(files) {
-  for (const file of files) {
-    const key = transferKey(file.name, file.size, file.lastModified);
+  queueEntries(Array.from(files, (file) => ({
+    file,
+    // Folder-picker selections carry webkitRelativePath; flat files don't.
+    relPath: file.webkitRelativePath || file.name,
+  })));
+}
+
+function queueEntries(entries) {
+  for (const { file, relPath } of entries) {
+    const key = transferKey(relPath, file.size, file.lastModified);
     if (transfers.has(key)) continue;
-    addTransferRow(key, file.name, file.size);
-    spawnWorker({ cmd: "upload", key, file, chunkSize: CHUNK_SIZE, concurrency: CONCURRENCY });
+    addTransferRow(key, relPath, file.size);
+    spawnWorker({ cmd: "upload", key, file, relPath, chunkSize: CHUNK_SIZE, concurrency: CONCURRENCY });
   }
 }
 
