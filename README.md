@@ -66,6 +66,11 @@ dropped connections and page reloads.
 - **Choose what you share**: change the shared folder from the window,
   set it with `--root <dir>`, or just drop the jar into the folder;
   optional start-on-launch.
+- **A themed server window**: the GUI is styled by an embedded,
+  dependency-free subset of the JaCross design system — Fluent 2 on
+  Windows, Material 3 elsewhere, following the OS dark mode — with
+  Noto Sans TC embedded so Traditional Chinese renders correctly on
+  every system.
 - The web app is **vanilla JS/CSS with browser-native APIs only** — no
   external libraries, no CDN, fully served by the jar itself.
 
@@ -157,6 +162,10 @@ ttDrop 由一個小巧的 **Java 伺服器程式**（Windows/macOS/Linux）加�
 - **自由選擇分享內容**：可從視窗更換分享的資料夾、以 `--root <dir>`
   指定，或直接把 jar 放進目標資料夾；並可選擇啟動程式時自動開啟
   伺服器。
+- **主題化的伺服器視窗**：圖形介面由內嵌、零相依的 JaCross 設計
+  系統子集繪製——Windows 上為 Fluent 2、其他平台為 Material 3，
+  並跟隨作業系統的深色模式——同時內嵌 Noto Sans TC 字型，讓正體
+  中文在任何系統上都能正確顯示。
 - 網頁應用程式**只使用原生 JS/CSS 與瀏覽器內建 API**——沒有外部
   函式庫、沒有 CDN，全部由 jar 本身提供。
 

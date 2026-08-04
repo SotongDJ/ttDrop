@@ -81,8 +81,14 @@ public final class Main {
         } else {
             final int guiPort = port;
             final boolean guiHttps = https;
-            javax.swing.SwingUtilities.invokeLater(() ->
-                    new ServerWindow(server, guiPort, guiHttps, config).setVisible(true));
+            // Platform probes and the embedded font load happen here,
+            // off the EDT; the L&F installs on the EDT before any
+            // component is constructed. Headless mode never runs this.
+            final jacross.Tokens theme = jacross.JaCross.detect();
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                jacross.JaCross.apply(theme);
+                new ServerWindow(server, guiPort, guiHttps, config).setVisible(true);
+            });
         }
     }
 }
