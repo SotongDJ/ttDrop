@@ -506,24 +506,20 @@ const sendSection = document.getElementById("send-section");
 const receiveSection = document.getElementById("receive-section");
 const browseSection = document.getElementById("browse-section");
 
-async function pairWith(code) {
-const name = (navigator.userAgentData && navigator.userAgentData.platform)
-|| navigator.platform || "Device";
+async function pairWith(code, name) {
 const res = await fetch(
 `/api/pair?code=${encodeURIComponent(code)}&name=${encodeURIComponent(name)}`,
 { method: "POST" });
-if (!res.ok) throw new Error(`pair failed: ${res.status}`);
-return res.json();
+const body = await res.json().catch(() => ({}));
+if (!res.ok) throw new Error(body.error || `pair failed: ${res.status}`);
+return body;
 }
 
 async function initSession() {
 try {
 const params = new URLSearchParams(location.search);
 if (params.has("pair")) {
-try {
-await pairWith(params.get("pair"));
-} catch {
-}
+document.getElementById("pair-code").value = params.get("pair");
 history.replaceState(null, "", location.pathname);
 }
 const session = await (await fetch("/api/session")).json();
@@ -533,6 +529,7 @@ sendSection.hidden = true;
 receiveSection.hidden = true;
 browseSection.hidden = true;
 connStatus.textContent = "Not paired";
+document.getElementById("pair-name").focus();
 return;
 }
 pairSection.hidden = true;
@@ -551,10 +548,12 @@ e.preventDefault();
 const errEl = document.getElementById("pair-error");
 errEl.hidden = true;
 try {
-await pairWith(document.getElementById("pair-code").value);
+await pairWith(
+document.getElementById("pair-code").value,
+document.getElementById("pair-name").value.trim());
 await initSession();
-} catch {
-errEl.textContent = "Pairing failed — the code may be wrong or expired.";
+} catch (err) {
+errEl.textContent = `Pairing failed: ${err.message}`;
 errEl.hidden = false;
 }
 });

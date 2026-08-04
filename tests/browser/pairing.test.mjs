@@ -66,6 +66,11 @@ try {
     session.pairingRequired === true && session.paired === false);
   check("wrong code rejected with 403",
     (await fetch(`${base}/api/pair?code=WRONG-CODE&name=x`, { method: "POST" })).status === 403);
+  check("invalid device name rejected with 400",
+    (await fetch(`${base}/api/pair?code=${firstCode}&name=Bad-Name`, { method: "POST" }))
+      .status === 400);
+  check("missing device name rejected with 400",
+    (await fetch(`${base}/api/pair?code=${firstCode}`, { method: "POST" })).status === 400);
 
   const browser = await launchBrowser();
   const context = await browser.newContext(CONTEXT_OPTIONS);
@@ -78,35 +83,43 @@ try {
   check("file browser hidden when unpaired",
     await page.evaluate(() => document.getElementById("browse-section").hidden));
 
-  // Pair by opening the QR URL.
+  // Opening the QR URL prefills the code; the user must name the device.
   await page.goto(`${base}/?pair=${firstCode}`, { waitUntil: "networkidle" });
+  check("QR URL prefills the pairing code",
+    (await page.inputValue("#pair-code")) === firstCode);
+  await page.fill("#pair-name", "phone_a");
+  await page.click("#pair-form button");
+  await page.waitForFunction(() => document.getElementById("pair-section").hidden,
+    { timeout: 15000 });
   const paired = await page.evaluate(async () => await (await fetch("/api/session")).json());
-  check("QR URL pairs the device", paired.paired === true && !!paired.name);
+  check("named pairing succeeds", paired.paired === true && paired.name === "phone_a");
   check("pairing screen gone after pairing",
     await page.evaluate(() => document.getElementById("pair-section").hidden));
+  check("duplicate name rejected with 409",
+    (await fetch(`${base}/api/pair?code=ANYC-ODEX&name=phone_a`, { method: "POST" }))
+      .status === 409);
 
   // Isolation: the device sees its own empty folder, not the root.
   const listing = await page.evaluate(async () =>
     await (await fetch("/files/", { headers: { Accept: "application/json" } })).json());
   check("device listing does not show host files",
     !listing.entries.some((e) => e.name === "host-secret.txt"));
-  check("device folder created on disk",
-    readdirSync(serveDir).some((n) => n !== "host-secret.txt" && !n.startsWith(".")));
+  check("device folder created with the chosen name",
+    existsSync(join(serveDir, "phone_a")));
 
   // Upload lands inside the device's folder.
   writeFileSync(join(serveDir, "..", "pair-upload.txt"), "scoped");
   await page.setInputFiles("#file-input", join(serveDir, "..", "pair-upload.txt"));
   await page.waitForSelector("#send-list .status-ok", { timeout: 60000 });
-  const deviceFolder = readdirSync(serveDir)
-    .find((n) => n !== "host-secret.txt" && !n.startsWith("."));
   check("upload landed in the device folder",
-    existsSync(join(serveDir, deviceFolder, "pair-upload.txt")));
+    existsSync(join(serveDir, "phone_a", "pair-upload.txt")));
   check("upload did not land at the root",
     !existsSync(join(serveDir, "pair-upload.txt")));
 
   // The consumed code no longer works, and a fresh one was issued.
   check("used code cannot pair again",
-    (await fetch(`${base}/api/pair?code=${firstCode}&name=y`, { method: "POST" })).status === 403);
+    (await fetch(`${base}/api/pair?code=${firstCode}&name=phone_b`, { method: "POST" }))
+      .status === 403);
   const codes = [...stdout.matchAll(/Pairing code: ([A-Z2-9]{4}-[A-Z2-9]{4})/g)];
   check("a fresh code was printed after pairing",
     codes.length >= 2 && codes[codes.length - 1][1] !== firstCode);

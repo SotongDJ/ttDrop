@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/style.css">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-512.png">
 </head>
 <body>
 <header>
@@ -19,9 +20,12 @@
 <h2>Pair this device</h2>
 <p class="muted">
 Ask the ttDrop host for a pairing code — scan its QR code with this device's camera,
-or type the code below.
+or type the code below. Choose a name for this device: lower-case letters, digits and _
+only, and it must not already be in use.
 </p>
 <form id="pair-form">
+<input id="pair-name" type="text" autocomplete="off" placeholder="device name"
+pattern="[a-z0-9_]{1,32}" maxlength="32" aria-label="Device name" required>
 <input id="pair-code" type="text" autocomplete="one-time-code"
 placeholder="XXXX-XXXX" aria-label="Pairing code" required>
 <button type="submit">Pair</button>

@@ -82,18 +82,18 @@ public final class UploadHandler implements HttpHandler {
             Path staging = partRoot.resolve(device.id() + "-" + key);
             Path deviceRoot = device.resolveRoot(fileRoot);
             switch (action) {
-                case "init" -> init(ex, key, staging, q);
+                case "init" -> init(ex, key, staging, device, q);
                 case "chunk" -> chunk(ex, staging, q);
                 case "status" -> status(ex, key, staging);
-                case "complete" -> complete(ex, staging, deviceRoot);
+                case "complete" -> complete(ex, staging, device, deviceRoot);
                 case "abort" -> abort(ex, staging);
                 default -> ex.sendResponseHeaders(404, -1);
             }
         }
     }
 
-    private void init(HttpExchange ex, String key, Path staging, Map<String, String> q)
-            throws IOException {
+    private void init(HttpExchange ex, String key, Path staging, Devices.Device device,
+            Map<String, String> q) throws IOException {
         if (!"POST".equals(ex.getRequestMethod())) {
             ex.sendResponseHeaders(405, -1);
             return;
@@ -112,6 +112,10 @@ public final class UploadHandler implements HttpHandler {
         }
         if (name == null || size < 0 || chunkSize <= 0 || chunkSize > MAX_CHUNK_SIZE) {
             sendJson(ex, 400, "{\"error\":\"bad parameters\"}");
+            return;
+        }
+        if (!device.canWriteSub(topFolder(name))) {
+            sendJson(ex, 403, "{\"error\":\"writing to this folder is not allowed\"}");
             return;
         }
         Path metaFile = staging.resolve("meta.properties");
@@ -212,7 +216,8 @@ public final class UploadHandler implements HttpHandler {
         sendJson(ex, 200, statusJson(key, staging, meta));
     }
 
-    private void complete(HttpExchange ex, Path staging, Path deviceRoot) throws IOException {
+    private void complete(HttpExchange ex, Path staging, Devices.Device device, Path deviceRoot)
+            throws IOException {
         if (!"POST".equals(ex.getRequestMethod())) {
             ex.sendResponseHeaders(405, -1);
             return;
@@ -220,6 +225,10 @@ public final class UploadHandler implements HttpHandler {
         Properties meta = loadMeta(staging);
         if (meta == null) {
             sendJson(ex, 404, "{\"error\":\"unknown transfer\"}");
+            return;
+        }
+        if (!device.canWriteSub(topFolder(meta.getProperty("name")))) {
+            sendJson(ex, 403, "{\"error\":\"writing to this folder is not allowed\"}");
             return;
         }
         long size = Long.parseLong(meta.getProperty("size"));
@@ -294,6 +303,12 @@ public final class UploadHandler implements HttpHandler {
             json.append(have.get(i));
         }
         return json.append("]}").toString();
+    }
+
+    /** Top-level folder of a safe relative path, or null for a flat name. */
+    private static String topFolder(String relPath) {
+        int slash = relPath == null ? -1 : relPath.indexOf('/');
+        return slash < 0 ? null : relPath.substring(0, slash);
     }
 
     static int chunkCount(long size, long chunkSize) {

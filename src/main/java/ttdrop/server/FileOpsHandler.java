@@ -62,6 +62,11 @@ public final class FileOpsHandler implements HttpHandler {
                 UploadHandler.sendJson(ex, 400, "{\"error\":\"bad path\"}");
                 return;
             }
+            if (!device.canWriteSub(Devices.Device.firstSegment(root, target))) {
+                UploadHandler.sendJson(ex, 403,
+                        "{\"error\":\"writing to this folder is not allowed\"}");
+                return;
+            }
             if (!Files.exists(target)) {
                 UploadHandler.sendJson(ex, 404, "{\"error\":\"not found\"}");
                 return;

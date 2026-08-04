@@ -111,11 +111,28 @@ is a core design requirement, in both directions (upload and download):
   - Pairing: the host shows a one-time code (GUI "Pair device…"
     dialog: QR of `scheme://host:port/?pair=CODE` + copyable text;
     headless prints a code at startup and a fresh one whenever one is
-    consumed). The device calls `POST /api/pair?code=&name=` — on
+    consumed). Scanning the QR prefills the code — the user must then
+    assign the device a **name: 1–32 of `[a-z0-9_]`, unique across
+    the device list** (`Devices.NAME`). `POST /api/pair?code=&name=`
+    → 400 bad name / 409 taken / 403 bad code; the name is validated
+    BEFORE the code is consumed, so rejects never burn a code. On
     success the server sets an HttpOnly session cookie (`ttdrop=`,
     SameSite=Lax, Secure over HTTPS) whose SHA-256 is stored in
     `~/.config/ttdrop/devices.properties`. Codes are in-memory,
     single-use, 10-minute expiry.
+  - Renaming (GUI "Rename…", `Devices.rename`): same name rules; when
+    the device is scoped to its own folder (last path segment matches
+    the old name, case-insensitively — pre-v0.18 auto-names could
+    carry upper case) that folder is renamed with it. Errors: "name",
+    "taken", "dir" (target exists / move failed).
+  - Per-subfolder access (GUI "Subfolders…" checklist): each device
+    carries `denyRead`/`denyWrite` sets of top-level subfolder names
+    inside its subtree — a **deny list, so everything (including
+    folders created later) is readable and writable by default**.
+    Enforced everywhere: listings (JSON and HTML) hide read-denied
+    subfolders at the device root, direct reads/zips of them 403, and
+    uploads/rename/delete into write-denied subfolders 403
+    (`Device.canReadSub`/`canWriteSub` on the first path segment).
   - `GET /api/session` → `{pairingRequired, paired, name, path, read,
     write, fileOps, browse}`; the PWA renders its whole UI from this.
   - Per-device grants, host-edited live in the GUI Devices panel:
@@ -304,7 +321,11 @@ https://localhost:<port>/` must succeed with no `-k`.
 
 ### General
 - The project is licensed **GPL-3.0**. Do not add code copied from
-  incompatibly-licensed sources.
+  incompatibly-licensed sources. This includes icon artwork: the app
+  icon is an original drawing (a Font Awesome **Pro** icon was
+  offered as reference and rejected — commercial licence, not
+  redistributable in an open-source repo). Never embed FA Pro assets;
+  only its colour (#003e6f) was adopted.
 - **README.md is bilingual**: English (UK spelling) followed by
   Traditional Chinese as used in Taiwan (臺灣正體). Keep both sections
   in sync in the same commit. Use Taiwanese glossary only — e.g.
@@ -432,6 +453,11 @@ QR tests live in `tests/qr/` (`npm install` there once, then
 live `/qr.png` endpoint. Run them for any change touching
 `ttdrop.util.QrCode` or `QrPngHandler`.
 
+Registry tests live in `tests/server/` (single-file Java,
+headless-safe): `java -cp dist/ttdrop.jar tests/server/DevicesTest.java`
+— pairing name validation, code consumption, rename incl. folder moves
+and legacy uppercase names. Run for any change to `Devices`.
+
 L&F tests live in `tests/laf/` (single-file Java, headless-safe):
 `java -Djava.awt.headless=true -cp dist/ttdrop.jar tests/laf/LafTest.java`
 — token contrast (≥4.5:1) across all four language×scheme combos,
@@ -440,10 +466,12 @@ control. Run it for any change under `src/main/java/jacross/`.
 
 Browser tests live in `tests/browser/` (plain Node scripts, exit 0/1):
 upload, upload-resume, download-resume, folder-upload, cancel,
-fileops, fileops-disabled, zip-download, inline-view, dir-browse, and
-pairing `.test.mjs` files; shared setup in `lib.mjs`, orchestrated by
-`run.sh` (starts a headless `--fileops --open` server on a temp dir
-and runs them all; `TTDROP_SCHEME=https` reruns the suite over TLS).
+fileops, fileops-disabled, zip-download, inline-view, dir-browse,
+pairing, and subdir-acl `.test.mjs` files; shared setup in `lib.mjs`,
+orchestrated by `run.sh` (starts a headless `--fileops --open` server
+on a temp dir, waits for readiness — never a fixed sleep, the first
+HTTPS start generates TLS material — and runs them all;
+`TTDROP_SCHEME=https` reruns the suite over TLS).
 Tests covering default postures (fileops-disabled, dir-browse,
 pairing) spawn their own servers with the flags they need — pairing
 uses `TTDROP_CONFIG_DIR` so test devices never touch the real config. They need Node.js, the `playwright`
@@ -551,6 +579,8 @@ ttDrop/
         ├── jacross/
         │   ├── NotoSansTC-Regular.otf  # embedded UI font (SIL OFL)
         │   └── OFL.txt                 # its licence — ships with the font
+        ├── ttdrop/
+        │   └── icon.png                # window/taskbar icon (dark bg)
         └── webroot/
             ├── index.html            # app shell
             ├── cert-help.html        # per-platform CA install guide
@@ -560,7 +590,8 @@ ttDrop/
             ├── downloader.js         # download worker (OPFS staging)
             ├── sw.js                 # service worker (shell cache only)
             ├── manifest.webmanifest  # PWA manifest
-            └── icon.svg              # app icon
+            ├── icon.svg              # app icon (light bg, navy glyph)
+            └── icon-512.png          # PNG icon (manifest + apple-touch)
 ```
 
 Build outputs go to `build/` and `dist/` (both git-ignored).
