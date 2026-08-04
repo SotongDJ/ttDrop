@@ -1,18 +1,54 @@
 package ttdrop;
 
+import java.awt.GraphicsEnvironment;
+import java.io.IOException;
+import java.nio.file.Path;
+
+import ttdrop.gui.ServerWindow;
+import ttdrop.server.TtDropServer;
+
 /**
  * Entry point for the ttDrop server application.
  *
- * <p>Placeholder: the GUI, HTTP server, PWA host, and receiver host are
- * implemented in subsequent batches. Running the jar currently prints a
- * startup notice and exits.
+ * <p>The working directory the jar is started from becomes the file root
+ * served under {@code /files/}. With a display available a Swing control
+ * window opens; with {@code --headless} (or no display) the server starts
+ * immediately and blocks until interrupted.
+ *
+ * <p>Arguments: {@code --port <n>} (default 4646), {@code --headless}.
  */
 public final class Main {
+    public static final int DEFAULT_PORT = 4646;
+
     private Main() {
     }
 
-    public static void main(String[] args) {
-        System.out.println("ttDrop server placeholder — implementation in progress.");
-        System.out.println("Working directory (file root): " + System.getProperty("user.dir"));
+    public static void main(String[] args) throws IOException, InterruptedException {
+        int port = DEFAULT_PORT;
+        boolean headless = false;
+        for (int i = 0; i < args.length; i++) {
+            switch (args[i]) {
+                case "--port" -> port = Integer.parseInt(args[++i]);
+                case "--headless" -> headless = true;
+                default -> {
+                    System.err.println("Unknown argument: " + args[i]);
+                    System.err.println("Usage: java -jar ttdrop.jar [--port <n>] [--headless]");
+                    System.exit(2);
+                }
+            }
+        }
+
+        Path fileRoot = Path.of(System.getProperty("user.dir"));
+        TtDropServer server = new TtDropServer(fileRoot);
+
+        if (headless || GraphicsEnvironment.isHeadless()) {
+            server.start(port);
+            System.out.println("ttDrop serving " + fileRoot + " on port " + server.getPort());
+            Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
+            Thread.currentThread().join();
+        } else {
+            final int guiPort = port;
+            javax.swing.SwingUtilities.invokeLater(() -> new ServerWindow(server, guiPort).setVisible(true));
+        }
     }
 }
