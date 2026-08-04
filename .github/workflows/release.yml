@@ -1,9 +1,13 @@
 name: release
 
-# Creates the batch tags and GitHub releases that cannot be pushed from
-# Claude cloud sessions (the session git proxy only allows branch pushes
-# — see AGENT.md "Cloud session notes"). Manually triggered; idempotent:
-# existing releases are left untouched, so re-runs only fill in gaps.
+# Syncs GitHub releases from the CHANGELOG file — the single source of
+# truth for release titles and notes. For every "## vX.Y.Z — title
+# (date)" section: an existing release gets its title/notes updated; a
+# missing one is created, tagged at the commit that triggered the run
+# (so add one new CHANGELOG entry per release run, and trigger from the
+# merge commit that should carry the tag). Manually triggered;
+# idempotent. Exists because Claude cloud sessions cannot push tags
+# (see AGENT.md "Cloud session notes").
 on:
   workflow_dispatch:
 
@@ -18,34 +22,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create releases for batch tags
+      - name: Sync releases from CHANGELOG
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          create() {
-            tag="$1"; sha="$2"; title="$3"; notes="$4"
+          tags=$(grep -oE '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG | awk '{print $2}')
+          for tag in $tags; do
+            title=$(grep -E "^## $tag( |$)" CHANGELOG | head -1 \
+              | sed -E 's/^## //; s/ \([0-9]{4}-[0-9]{2}-[0-9]{2}\)$//')
+            awk -v tag="$tag" '
+              $0 ~ "^## "tag"( |$)" {found=1; next}
+              /^## / {found=0}
+              found {print}
+            ' CHANGELOG | sed -e '/./,$!d' > /tmp/notes.md
             if gh release view "$tag" >/dev/null 2>&1; then
-              echo "$tag already released, skipping"
-              return
+              gh release edit "$tag" --title "$title" --notes-file /tmp/notes.md
+              echo "updated $tag from CHANGELOG"
+            else
+              gh release create "$tag" --target "$GITHUB_SHA" --title "$title" --notes-file /tmp/notes.md
+              echo "created $tag at $GITHUB_SHA"
             fi
-            gh release create "$tag" --target "$sha" --title "$title" --notes "$notes"
-          }
-          create v0.1.0 39d4b15d2c5cb455d141a41ccdbff73ef1db977c \
-            "v0.1.0 — pixi environment scaffold" \
-            "pixi-managed toolchain (OpenJDK 25, conda-forge) locked for linux-64/win-64/osx-64/osx-arm64, build/run/clean tasks producing dist/ttdrop.jar, source layout, placeholder entry point."
-          create v0.1.1 60e28276300c274e7ac9dc35ad33431f0e52eb3a \
-            "v0.1.1 — Java server core" \
-            "Pure-JDK server: Swing control window plus --headless mode, working directory served at /files/ with JSON listings and streamed downloads, path-traversal rejection, PWA webroot served from jar resources."
-          create v0.1.2 6e2a63bbf67b80ac0b607c86983eac7987f73710 \
-            "v0.1.2 — PWA shell" \
-            "Vanilla JS/CSS app shell: drag-and-drop file picker, server file browser with breadcrumbs, installable manifest with SVG icon, light/dark theming, service worker caching the shell only."
-          create v0.2.0 1e449c390abb629419c267096f718ff9722870a2 \
-            "v0.2.0 — chunked resumable upload engine" \
-            "Upload API (init/chunk/status/complete) with atomic on-disk staging surviving server restarts; PWA upload worker staging files into OPFS, parallel chunk pool with retry/backoff, resume across page reloads."
-          create v0.2.1 3e235dafd410385dec5293352b0490c65e1dcf24 \
-            "v0.2.1 — resumable downloads and config persistence" \
-            "Range/ETag support on /files/; PWA download worker fetching ranges in parallel into OPFS with per-chunk tracking, ETag staleness detection, deferred staging cleanup; settings persisted at ~/.config/ttdrop/."
+          done
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -59,7 +57,9 @@ jobs:
           javac -d build/classes -sourcepath src/main/java src/main/java/ttdrop/Main.java
           jar --create --file dist/ttdrop.jar --main-class ttdrop.Main -C build/classes . -C src/main/resources .
 
-      - name: Attach jar to the latest batch release
+      - name: Attach jar to the newest release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload v0.2.1 dist/ttdrop.jar --clobber
+        run: |
+          newest=$(grep -oE '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG | head -1 | awk '{print $2}')
+          gh release upload "$newest" dist/ttdrop.jar --clobber
