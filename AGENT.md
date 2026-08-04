@@ -93,6 +93,10 @@ is a core design requirement, in both directions (upload and download):
   `--fileops` flag; while off the endpoints return 403 and the `/files/`
   listing advertises `fileOps:false` so the PWA hides the buttons. Keep
   new privileged operations behind this same default-off pattern.
+- **Zip downloads** (implemented): `GET /api/zip?path=<dir>` streams a
+  recursive zip of a directory (empty path = whole root; staging
+  excluded; sanitized/traversal-checked). Read-only, so not gated by
+  the file-management toggle (`ZipHandler`).
 - **Download protocol** (implemented): `/files/<path>` supports `HEAD`
   and single-range `Range: bytes=a-b` GETs (206 + `Content-Range`,
   416 on bad ranges) with an ETag of `"size-mtime"`. The PWA's
@@ -419,7 +423,6 @@ Update this map when the source tree grows.
 
 ## Known gaps / good first tasks
 
-- Downloading a whole folder (zip on the fly) from the browser.
 - End-to-end integrity digests for uploads (e.g. client-computed
   SHA-256 verified at complete time, where crypto.subtle is available).
 - The GUI is English-only; no localization scaffolding exists yet.

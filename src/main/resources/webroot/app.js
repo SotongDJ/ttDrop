@@ -447,6 +447,11 @@ function renderListing(entries, path, fileOps) {
     }
     li.append(name);
     if (!entry.dir) li.append(el("span", "size", formatSize(entry.size)));
+    if (entry.dir) {
+      li.append(fileOpButton("⬇", `Download ${entry.name} as zip`, () => {
+        window.location.href = `/api/zip?path=${encodeURIComponent(path + entry.name)}`;
+      }));
+    }
     if (fileOps) {
       li.append(fileOpButton("✎", `Rename ${entry.name}`, () => renameEntry(path, entry)));
       li.append(fileOpButton("🗑", `Delete ${entry.name}`, () => deleteEntry(path, entry)));
