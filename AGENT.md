@@ -72,6 +72,12 @@ is a core design requirement, in both directions (upload and download):
     worker falls back to slicing the original `File` (no reload-resume).
   - File names are sanitized server-side (separators/reserved characters
     stripped, no traversal, 255-char cap).
+- **QR endpoint** (implemented): `GET /qr.png` returns a QR PNG of
+  `http://<Host header>/` (the URL the requesting client used), with a
+  `?text=` override capped at 80 chars. Backed by `ttdrop.util.QrCode`,
+  a pure-JDK encoder (byte mode, versions 1–5, ECC level M, all eight
+  masks) — do not swap it for a library; verify any change with
+  `tests/qr/`. The Swing GUI shows the same QR for its address picker.
 - **Download protocol** (implemented): `/files/<path>` supports `HEAD`
   and single-range `Range: bytes=a-b` GETs (206 + `Content-Range`,
   416 on bad ranges) with an ETag of `"size-mtime"`. The PWA's
@@ -247,6 +253,11 @@ free browser JS/CSS.
 
 ## Testing
 
+QR tests live in `tests/qr/` (`npm install` there once, then
+`node qr.test.mjs`): encoder round-trips decoded with jsqr plus the
+live `/qr.png` endpoint. Run them for any change touching
+`ttdrop.util.QrCode` or `QrPngHandler`.
+
 Browser tests live in `tests/browser/` (plain Node scripts, exit 0/1):
 `upload.test.mjs`, `upload-resume.test.mjs`, `download-resume.test.mjs`,
 shared setup in `lib.mjs`, orchestrated by `run.sh` (starts a headless
@@ -323,16 +334,19 @@ ttDrop/
 ├── pixi.toml             # pixi workspace: deps, platforms, tasks (tracked)
 ├── pixi.lock             # pixi lockfile, all 4 platforms (tracked)
 ├── tests/browser/        # Node+Playwright E2E tests (see Testing)
+├── tests/qr/             # QR encoder + /qr.png decoder tests
 └── src/main/
     ├── java/ttdrop/
     │   ├── Main.java             # entry point; GUI or --headless
     │   ├── Config.java           # ~/.config/ttdrop/config.properties
-    │   ├── gui/ServerWindow.java # Swing control window
+    │   ├── util/QrCode.java      # pure-JDK QR encoder (v1-5, ECC M)
+    │   ├── gui/ServerWindow.java # Swing control window (IP picker, QR)
     │   └── server/
     │       ├── TtDropServer.java  # HttpServer wiring, LAN addresses
     │       ├── WebRootHandler.java# embedded PWA assets from the jar
     │       ├── FilesHandler.java  # /files/: listings, Range downloads
-    │       └── UploadHandler.java # /api/upload/: chunked resumable
+    │       ├── UploadHandler.java # /api/upload/: chunked resumable
+    │       └── QrPngHandler.java  # /qr.png: QR of the site URL
     └── resources/webroot/
         ├── index.html            # app shell
         ├── style.css             # vanilla CSS, light/dark

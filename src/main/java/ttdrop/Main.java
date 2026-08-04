@@ -43,7 +43,13 @@ public final class Main {
         TtDropServer server = new TtDropServer(fileRoot);
 
         if (headless || GraphicsEnvironment.isHeadless()) {
-            server.start(port);
+            try {
+                server.start(port);
+            } catch (java.net.BindException be) {
+                int freePort = TtDropServer.findFreePort();
+                System.err.println("Port " + port + " is already in use; using free port " + freePort);
+                server.start(freePort);
+            }
             System.out.println("ttDrop serving " + fileRoot + " on port " + server.getPort());
             Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
             Thread.currentThread().join();

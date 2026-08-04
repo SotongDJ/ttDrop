@@ -257,6 +257,16 @@ async function resumePending() {
 
 resumePending();
 
+/* ---------- QR share (fetches /qr.png only when opened) ---------- */
+
+const qrShare = document.getElementById("qr-share");
+qrShare.addEventListener("toggle", () => {
+  const img = document.getElementById("qr-img");
+  if (qrShare.open && !img.src) {
+    img.src = "/qr.png";
+  }
+});
+
 /* ---------- server file browser ---------- */
 
 async function loadDir(path) {

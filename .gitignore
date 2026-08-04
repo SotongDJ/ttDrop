@@ -29,3 +29,7 @@ replay_pid*
 # Build outputs
 build/
 dist/
+
+# Test dependencies
+node_modules/
+package-lock.json
