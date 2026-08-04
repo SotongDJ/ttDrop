@@ -33,13 +33,69 @@ import java.util.concurrent.ConcurrentHashMap;
  * until the host widens their path ("" = the whole shared folder).
  */
 public final class Devices {
-    /** One device's identity and host-granted permissions. */
+    /**
+     * One device's identity and host-granted permissions. Sub-folder
+     * access is a deny list over the top-level folders inside the
+     * device's subtree: empty sets (the default) mean every subfolder
+     * is readable and writable, and folders created later are allowed
+     * automatically.
+     */
     public record Device(String id, String name, String relPath,
-            boolean read, boolean write, boolean browse) {
+            boolean read, boolean write, boolean browse,
+            java.util.Set<String> denyRead, java.util.Set<String> denyWrite) {
+        public Device {
+            denyRead = java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(denyRead));
+            denyWrite = java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(denyWrite));
+        }
+
+        public Device(String id, String name, String relPath,
+                boolean read, boolean write, boolean browse) {
+            this(id, name, relPath, read, write, browse, java.util.Set.of(), java.util.Set.of());
+        }
+
         /** The subtree this device may touch, resolved and normalized. */
         public Path resolveRoot(Path fileRoot) {
             Path scoped = fileRoot.resolve(relPath).normalize();
             return scoped.startsWith(fileRoot) ? scoped : fileRoot;
+        }
+
+        /** May this device read inside the given top-level subfolder?
+         *  (null = the device root itself: governed by read().) */
+        public boolean canReadSub(String sub) {
+            return sub == null || !denyRead.contains(sub);
+        }
+
+        public boolean canWriteSub(String sub) {
+            return sub == null || !denyWrite.contains(sub);
+        }
+
+        /** First path segment of target relative to root, or null at root level. */
+        public static String firstSegment(Path root, Path target) {
+            if (target.equals(root) || !target.startsWith(root)) {
+                return null;
+            }
+            return root.relativize(target).getName(0).toString();
+        }
+
+        public Device withRead(boolean v) {
+            return new Device(id, name, relPath, v, write, browse, denyRead, denyWrite);
+        }
+
+        public Device withWrite(boolean v) {
+            return new Device(id, name, relPath, read, v, browse, denyRead, denyWrite);
+        }
+
+        public Device withBrowse(boolean v) {
+            return new Device(id, name, relPath, read, write, v, denyRead, denyWrite);
+        }
+
+        public Device withRelPath(String p) {
+            return new Device(id, name, p, read, write, browse, denyRead, denyWrite);
+        }
+
+        public Device withDeny(java.util.Set<String> newDenyRead,
+                java.util.Set<String> newDenyWrite) {
+            return new Device(id, name, relPath, read, write, browse, newDenyRead, newDenyWrite);
         }
     }
 
@@ -103,21 +159,38 @@ public final class Devices {
         return code.toString();
     }
 
+    /** Device names are user-assigned: lower-case, digits, underscore. */
+    public static final java.util.regex.Pattern NAME =
+            java.util.regex.Pattern.compile("[a-z0-9_]{1,32}");
+
+    /** Pairing outcome: exactly one of token/error is set. Errors:
+     *  "code" (invalid/expired), "name" (bad format), "taken". */
+    public record PairOutcome(String token, String error) {
+    }
+
     /**
-     * Consumes a pairing code and creates the device (scoped to its
-     * own folder under the file root). Returns the raw session token,
-     * or null when the code is invalid or expired.
+     * Consumes a pairing code and creates the device, scoped to its
+     * own folder named after the user-assigned name. The name is
+     * validated BEFORE the code is consumed, so a rejected name does
+     * not burn the code.
      */
-    public synchronized String pair(String code, String requestedName, Path fileRoot) {
+    public synchronized PairOutcome pair(String code, String name, Path fileRoot) {
+        if (name == null || !NAME.matcher(name).matches()) {
+            return new PairOutcome(null, "name");
+        }
+        if (nameTaken(name)) {
+            return new PairOutcome(null, "taken");
+        }
         if (code == null) {
-            return null;
+            return new PairOutcome(null, "code");
         }
         String normalized = code.trim().toUpperCase();
-        Long expiry = pendingCodes.remove(normalized);
+        Long expiry = pendingCodes.get(normalized);
         if (expiry == null || expiry < System.currentTimeMillis()) {
-            return null;
+            pendingCodes.remove(normalized);
+            return new PairOutcome(null, "code");
         }
-        String name = uniqueName(UploadHandler.sanitize(requestedName));
+        pendingCodes.remove(normalized);
         String id = randomHex(8);
         byte[] tokenBytes = new byte[32];
         random.nextBytes(tokenBytes);
@@ -132,7 +205,58 @@ public final class Devices {
         }
         save();
         onChange.run();
-        return token;
+        return new PairOutcome(token, null);
+    }
+
+    /**
+     * Renames a device; when the device is scoped to its own folder
+     * (last path segment matches the old name, case-insensitively —
+     * pre-v0.18 auto-names could carry upper case), that folder is
+     * renamed too. New names must follow {@link #NAME}. Returns null
+     * on success or an error: "name", "taken", "dir" (folder rename
+     * failed, e.g. target exists), "unknown".
+     */
+    public synchronized String rename(String id, String newName, Path fileRoot) {
+        Device device = byId.get(id);
+        if (device == null) {
+            return "unknown";
+        }
+        if (newName == null || !NAME.matcher(newName).matches()) {
+            return "name";
+        }
+        if (!newName.equalsIgnoreCase(device.name()) && nameTaken(newName)) {
+            return "taken";
+        }
+        String relPath = device.relPath();
+        String[] segments = relPath.isEmpty() ? new String[0] : relPath.split("/");
+        boolean ownFolder = segments.length > 0
+                && segments[segments.length - 1].equalsIgnoreCase(device.name());
+        if (ownFolder) {
+            segments[segments.length - 1] = newName;
+            String newRel = String.join("/", segments);
+            Path from = fileRoot.resolve(relPath).normalize();
+            Path to = fileRoot.resolve(newRel).normalize();
+            if (!to.startsWith(fileRoot)) {
+                return "dir";
+            }
+            try {
+                if (Files.exists(from) && !from.equals(to)) {
+                    if (Files.exists(to)) {
+                        return "dir";
+                    }
+                    Files.move(from, to);
+                }
+            } catch (IOException e) {
+                return "dir";
+            }
+            relPath = newRel;
+        }
+        byId.put(id, new Device(id, newName, relPath,
+                device.read(), device.write(), device.browse(),
+                device.denyRead(), device.denyWrite()));
+        save();
+        onChange.run();
+        return null;
     }
 
     public synchronized Device get(String id) {
@@ -179,14 +303,14 @@ public final class Devices {
                 + (secure ? "; Secure" : "");
     }
 
-    private String uniqueName(String requested) {
-        String base = requested == null ? "Device" : requested;
-        String name = base;
-        int n = 2;
-        while (nameTaken(name)) {
-            name = base + " " + n++;
+    private static java.util.Set<String> splitNames(String joined) {
+        java.util.Set<String> out = new java.util.TreeSet<>();
+        for (String name : joined.split("\n")) {
+            if (!name.isEmpty()) {
+                out.add(name);
+            }
         }
-        return name;
+        return out;
     }
 
     private boolean nameTaken(String name) {
@@ -240,7 +364,9 @@ public final class Devices {
                     p.getProperty("d." + id + ".path", ""),
                     Boolean.parseBoolean(p.getProperty("d." + id + ".read", "true")),
                     Boolean.parseBoolean(p.getProperty("d." + id + ".write", "true")),
-                    Boolean.parseBoolean(p.getProperty("d." + id + ".browse", "true")));
+                    Boolean.parseBoolean(p.getProperty("d." + id + ".browse", "true")),
+                    splitNames(p.getProperty("d." + id + ".denyRead", "")),
+                    splitNames(p.getProperty("d." + id + ".denyWrite", "")));
             byId.put(id, device);
             idByTokenHash.put(hash, id);
         }
@@ -261,6 +387,10 @@ public final class Devices {
             p.setProperty("d." + d.id() + ".read", String.valueOf(d.read()));
             p.setProperty("d." + d.id() + ".write", String.valueOf(d.write()));
             p.setProperty("d." + d.id() + ".browse", String.valueOf(d.browse()));
+            // Newline-joined (Properties escapes them); folder names may
+            // contain commas, but never newlines.
+            p.setProperty("d." + d.id() + ".denyRead", String.join("\n", d.denyRead()));
+            p.setProperty("d." + d.id() + ".denyWrite", String.join("\n", d.denyWrite()));
         }
         try {
             Files.createDirectories(file.getParent());

@@ -90,6 +90,12 @@ public final class FilesHandler implements HttpHandler {
                 ex.sendResponseHeaders(403, -1);
                 return;
             }
+            // Per-subfolder deny list: the top-level subfolder of the
+            // device's subtree decides.
+            if (!device.canReadSub(Devices.Device.firstSegment(root, target))) {
+                ex.sendResponseHeaders(403, -1);
+                return;
+            }
             if (Files.isDirectory(target)) {
                 // The PWA asks for application/json explicitly; a browser
                 // navigating to the URL sends Accept: text/html,... — only
@@ -98,9 +104,9 @@ public final class FilesHandler implements HttpHandler {
                 String accept = ex.getRequestHeaders().getFirst("Accept");
                 if (dirBrowse.getAsBoolean() && device.browse()
                         && accept != null && accept.contains("text/html")) {
-                    sendHtmlListing(ex, root, target);
+                    sendHtmlListing(ex, device, root, target);
                 } else {
-                    sendListing(ex, device, target);
+                    sendListing(ex, device, root, target);
                 }
             } else if (Files.isRegularFile(target)) {
                 sendFile(ex, target, head);
@@ -119,7 +125,9 @@ public final class FilesHandler implements HttpHandler {
         }
     }
 
-    private void sendListing(HttpExchange ex, Devices.Device device, Path dir) throws IOException {
+    private void sendListing(HttpExchange ex, Devices.Device device, Path root, Path dir)
+            throws IOException {
+        boolean atDeviceRoot = dir.equals(root);
         // fileOps tells the PWA whether to render rename/delete buttons:
         // the global toggle AND the device's write grant.
         StringBuilder json = new StringBuilder(
@@ -128,6 +136,9 @@ public final class FilesHandler implements HttpHandler {
             boolean first = true;
             for (Path p : (Iterable<Path>) entries.sorted()::iterator) {
                 if (p.getFileName().toString().equals(UploadHandler.PART_DIR)) {
+                    continue;
+                }
+                if (atDeviceRoot && !device.canReadSub(p.getFileName().toString())) {
                     continue;
                 }
                 if (!first) {
@@ -159,7 +170,9 @@ public final class FilesHandler implements HttpHandler {
      * carries a CSP that forbids everything but inline styles, so a
      * hostile file name can never become script on this origin.
      */
-    private void sendHtmlListing(HttpExchange ex, Path root, Path dir) throws IOException {
+    private void sendHtmlListing(HttpExchange ex, Devices.Device device, Path root, Path dir)
+            throws IOException {
+        boolean atDeviceRoot = dir.equals(root);
         Path rel = root.relativize(dir);
         StringBuilder base = new StringBuilder("/files/");
         for (Path segment : rel) {
@@ -214,7 +227,8 @@ public final class FilesHandler implements HttpHandler {
                             .comparing((Path e) -> !Files.isDirectory(e))
                             .thenComparing(e -> e.getFileName().toString()))::iterator) {
                 String name = p.getFileName().toString();
-                if (name.equals(UploadHandler.PART_DIR)) {
+                if (name.equals(UploadHandler.PART_DIR)
+                        || (atDeviceRoot && !device.canReadSub(name))) {
                     continue;
                 }
                 boolean isDir = Files.isDirectory(p);

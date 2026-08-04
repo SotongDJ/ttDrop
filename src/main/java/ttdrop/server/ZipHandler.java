@@ -61,6 +61,10 @@ public final class ZipHandler implements HttpHandler {
                     return;
                 }
             }
+            if (!device.canReadSub(Devices.Device.firstSegment(root, target))) {
+                ex.sendResponseHeaders(403, -1);
+                return;
+            }
             if (!Files.isDirectory(target)) {
                 ex.sendResponseHeaders(404, -1);
                 return;
@@ -75,6 +79,9 @@ public final class ZipHandler implements HttpHandler {
                     var walk = Files.walk(target)) {
                 for (Path file : (Iterable<Path>) walk.sorted()::iterator) {
                     if (!Files.isRegularFile(file) || file.startsWith(staging)) {
+                        continue;
+                    }
+                    if (!device.canReadSub(Devices.Device.firstSegment(root, file))) {
                         continue;
                     }
                     zip.putNextEntry(new ZipEntry(target.relativize(file).toString().replace('\\', '/')));

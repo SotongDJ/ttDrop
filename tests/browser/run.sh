@@ -28,11 +28,17 @@ cd "$SERVE_DIR"
 "$JAVA" -jar "$REPO_ROOT/dist/ttdrop.jar" --headless --port "$PORT" "$SCHEME_FLAG" --fileops --open &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
-sleep 3
+# Wait for readiness instead of a fixed sleep: the first HTTPS start
+# also generates the CA and server certificate, which can exceed 3s.
+# (-k only here — the TLS gold test uses --cacert, never -k.)
+for i in $(seq 1 60); do
+    curl -ks -o /dev/null "$SCHEME://localhost:$PORT/" && break
+    sleep 0.5
+done
 
 cd "$REPO_ROOT/tests/browser"
 FAIL=0
-for test in upload.test.mjs upload-resume.test.mjs download-resume.test.mjs folder-upload.test.mjs cancel.test.mjs fileops.test.mjs fileops-disabled.test.mjs zip-download.test.mjs inline-view.test.mjs dir-browse.test.mjs pairing.test.mjs; do
+for test in upload.test.mjs upload-resume.test.mjs download-resume.test.mjs folder-upload.test.mjs cancel.test.mjs fileops.test.mjs fileops-disabled.test.mjs zip-download.test.mjs inline-view.test.mjs dir-browse.test.mjs pairing.test.mjs subdir-acl.test.mjs; do
     echo "=== $test ==="
     TTDROP_PORT="$PORT" TTDROP_DIR="$SERVE_DIR" node "$test" || FAIL=1
 done

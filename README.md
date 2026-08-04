@@ -35,9 +35,12 @@ dropped connections and page reloads.
    to enable the optional toggles below).
 4. **Pair each device**: click **Pair device…** in the server window
    and let the other device scan the QR code (or open the site and
-   type the one-time code). Until a device pairs, it sees nothing —
-   and each newly paired device only sees its own folder until you
-   allow more (headless mode prints pairing codes on the console;
+   type the one-time code), then give the device a name — lower-case
+   letters, digits and `_`, unique on this server. Until a device
+   pairs, it sees nothing — and each newly paired device only sees
+   its own folder (named after it) until you allow more: change its
+   folder, rename it, or tick/untick per-subfolder Read/Write in the
+   window (headless mode prints pairing codes on the console;
    `--open` disables pairing entirely).
 5. On the paired device, open the URL the window shows — click it on
    the server to open it in your own browser, or scan the QR code it
@@ -53,10 +56,12 @@ dropped connections and page reloads.
 ### Features
 
 - **Private by default — one session per device**: nothing is visible
-  without pairing via a one-time QR/text code. Each paired device
-  gets its own folder and per-device Read/Write/Browse switches in
-  the server window, so devices cannot see the host's files or each
-  other unless the host allows it.
+  without pairing via a one-time QR/text code and a user-chosen
+  device name. Each paired device gets its own folder plus per-device
+  Read/Write/Browse switches and a per-subfolder Read/Write
+  checklist in the server window, so devices cannot see the host's
+  files or each other unless the host allows it. Devices can be
+  renamed (their folder follows).
 - **Chunked, parallel, resumable transfers** in both directions:
   interrupted uploads and downloads continue from the chunks already
   done — across page reloads (staged in the browser's private storage,
@@ -147,10 +152,12 @@ ttDrop 由一個小巧的 **Java 伺服器程式**（Windows/macOS/Linux）加�
    預設 4646；`--http` 停用 TLS；`--fileops` 與 `--browse`
    可啟用下方的選用功能）。
 4. **為每台裝置配對**：在伺服器視窗點選 **Pair device…**，讓另一台
-   裝置掃描 QR Code（或開啟網站後輸入一次性配對碼）。裝置在配對前
-   看不到任何內容——而且每台新配對的裝置預設只能看到自己的資料夾，
-   除非你放寬權限（無圖形介面模式會在主控台印出配對碼；`--open`
-   可完全停用配對）。
+   裝置掃描 QR Code（或開啟網站後輸入一次性配對碼），並為裝置取一個
+   名稱——小寫英文字母、數字與 `_`，且在此伺服器上不得重複。裝置在
+   配對前看不到任何內容——每台新配對的裝置預設只能看到以自己命名的
+   資料夾，除非你放寬權限：可更換其資料夾、重新命名裝置（資料夾會
+   一起改名），或在視窗中勾選／取消每個子資料夾的讀寫權限
+   （無圖形介面模式會在主控台印出配對碼；`--open` 可完全停用配對）。
 5. 在配對好的裝置上開啟視窗顯示的網址——在伺服器端點選網址即可用
    本機預設瀏覽器開啟，或掃描視窗顯示的 QR Code
    （`https://<你的-ip>:4646/`）。接受一次性的憑證警告，或更好的做法：
@@ -163,9 +170,11 @@ ttDrop 由一個小巧的 **Java 伺服器程式**（Windows/macOS/Linux）加�
 ### 功能特色
 
 - **預設保密——每台裝置一個工作階段**：未配對前看不到任何內容，
-  配對透過一次性的 QR Code 或文字配對碼完成。每台已配對的裝置有
-  自己的資料夾，並可在伺服器視窗中個別設定讀取／寫入／瀏覽權限，
-  因此除非主機允許，裝置之間看不到彼此的檔案，也看不到主機的檔案。
+  配對透過一次性的 QR Code 或文字配對碼完成，並由使用者為裝置命名。
+  每台已配對的裝置有自己的資料夾，可在伺服器視窗中個別設定
+  讀取／寫入／瀏覽權限，還有逐一子資料夾的讀寫勾選清單，因此除非
+  主機允許，裝置之間看不到彼此的檔案，也看不到主機的檔案。裝置可
+  重新命名（資料夾會一起改名）。
 - **分塊、並行、可續傳的雙向傳輸**：中斷的上傳與下載會從已完成的
   分塊接續——頁面重新載入（暫存於瀏覽器私有儲存空間 OPFS）與
   伺服器重啟（暫存於隱藏的 `.ttdrop-part/` 資料夾）皆可續傳。

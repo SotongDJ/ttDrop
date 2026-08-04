@@ -8,6 +8,39 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.18.0 — named devices and per-subfolder access (2026-08-04)
+
+- Pairing now asks the user to name the device: 1–32 characters of
+  lower-case letters, digits and underscore, unique across the
+  server's device list (400/409 otherwise, and a rejected name never
+  burns the pairing code). Scanning the host's QR code prefills the
+  pairing code; the name is always typed by the user. The device's
+  folder is created under the chosen name.
+- Devices can be renamed from the server window ("Rename…"): the new
+  name follows the same rules, and when the device is scoped to its
+  own folder that folder is renamed with it — including folders from
+  earlier versions whose auto-assigned names carried upper case.
+- Per-subfolder access checklist ("Subfolders…" per device): tick or
+  untick Read and Write for each top-level subfolder of the device's
+  folder. Everything is allowed by default (a deny list), so new
+  subfolders are automatically available. Enforced across listings
+  (denied subfolders are invisible), direct reads, zips, uploads,
+  and rename/delete.
+- New app icons in two palettes: the server window/taskbar uses a
+  dark-background, light-glyph PNG; the web app uses a light-
+  background, navy-glyph SVG + 512px PNG (manifest and
+  apple-touch-icon). The NAS glyph (server body, two drive bays,
+  status dashes) is an original drawing — the Font Awesome Pro
+  reference could not be embedded, its commercial licence being
+  incompatible with GPL-3.0 — in the reference's navy #003e6f.
+- Test hardening: the browser suite now waits for server readiness
+  instead of a fixed sleep (the first HTTPS start generates TLS
+  material and could exceed it — the recurring first-test flake).
+  New `subdir-acl` browser test (13 checks) and `tests/server/`
+  registry test (14 checks: name validation, rename, legacy
+  uppercase folders); pairing test extended to 19 checks. Full
+  12-test suite green over HTTP and HTTPS.
+
 ## v0.17.0 — working folder pickers and versioned release jars (2026-08-04)
 
 - Fixed: choosing a folder was impossible — the folder dialogs

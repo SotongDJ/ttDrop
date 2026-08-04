@@ -60,11 +60,19 @@ public final class PairHandler implements HttpHandler {
             return;
         }
         Map<String, String> q = UploadHandler.query(ex);
-        String token = devices.pair(q.get("code"), q.get("name"), fileRoot);
-        if (token == null) {
-            UploadHandler.sendJson(ex, 403, "{\"error\":\"invalid or expired pairing code\"}");
+        Devices.PairOutcome outcome = devices.pair(q.get("code"), q.get("name"), fileRoot);
+        if (outcome.error() != null) {
+            switch (outcome.error()) {
+                case "name" -> UploadHandler.sendJson(ex, 400,
+                        "{\"error\":\"device name must be 1-32 of a-z, 0-9, _\"}");
+                case "taken" -> UploadHandler.sendJson(ex, 409,
+                        "{\"error\":\"that device name is already used\"}");
+                default -> UploadHandler.sendJson(ex, 403,
+                        "{\"error\":\"invalid or expired pairing code\"}");
+            }
             return;
         }
+        String token = outcome.token();
         ex.getResponseHeaders().set("Set-Cookie",
                 Devices.cookie(token, "https".equals(scheme.get())));
         Devices.Device device = devices.deviceForToken(token);

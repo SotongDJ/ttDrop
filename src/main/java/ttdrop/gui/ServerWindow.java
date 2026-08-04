@@ -73,6 +73,7 @@ public final class ServerWindow extends JFrame {
         this.pairButton.setEnabled(false);
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        applyAppIcon();
         JPanel main = new JPanel();
         main.setLayout(new BoxLayout(main, BoxLayout.Y_AXIS));
         main.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
@@ -159,6 +160,25 @@ public final class ServerWindow extends JFrame {
         }
     }
 
+    /** Window/taskbar icon: the dark-background variant (resources). */
+    private void applyAppIcon() {
+        try (java.io.InputStream in = ServerWindow.class.getResourceAsStream("/ttdrop/icon.png")) {
+            if (in == null) {
+                return;
+            }
+            java.awt.image.BufferedImage icon = javax.imageio.ImageIO.read(in);
+            setIconImage(icon);
+            if (java.awt.Taskbar.isTaskbarSupported()) {
+                java.awt.Taskbar taskbar = java.awt.Taskbar.getTaskbar();
+                if (taskbar.isSupported(java.awt.Taskbar.Feature.ICON_IMAGE)) {
+                    taskbar.setIconImage(icon);
+                }
+            }
+        } catch (Exception ignored) {
+            // the default Java icon is a cosmetic fallback only
+        }
+    }
+
     /** One-time pairing code as QR + copyable text (server must run). */
     private void showPairDialog() {
         Object selected = addressBox.getSelectedItem();
@@ -227,15 +247,22 @@ public final class ServerWindow extends JFrame {
                 + " (the shared folder itself grants everything)");
         folderButton.addActionListener(e -> chooseDeviceFolder(device));
         row.add(folderButton);
+        JButton subButton = new JButton("Subfolders…");
+        subButton.setToolTipText(
+                "Choose which subfolders this device may read and write (all allowed by default)");
+        subButton.addActionListener(e -> showSubfoldersDialog(device.id()));
+        row.add(subButton);
         row.add(permissionBox("Read", "Allow downloads and listings", device.read(),
-                v -> server.devices().update(new ttdrop.server.Devices.Device(
-                        device.id(), device.name(), device.relPath(), v, device.write(), device.browse()))));
-        row.add(permissionBox("Write", "Allow uploads (and rename/delete when enabled)", device.write(),
-                v -> server.devices().update(new ttdrop.server.Devices.Device(
-                        device.id(), device.name(), device.relPath(), device.read(), v, device.browse()))));
-        row.add(permissionBox("Browse", "Allow /files/ listing pages for this device", device.browse(),
-                v -> server.devices().update(new ttdrop.server.Devices.Device(
-                        device.id(), device.name(), device.relPath(), device.read(), device.write(), v))));
+                v -> updateDevice(device.id(), d -> d.withRead(v))));
+        row.add(permissionBox("Write", "Allow uploads (and rename/delete when enabled)",
+                device.write(), v -> updateDevice(device.id(), d -> d.withWrite(v))));
+        row.add(permissionBox("Browse", "Allow /files/ listing pages for this device",
+                device.browse(), v -> updateDevice(device.id(), d -> d.withBrowse(v))));
+        JButton renameButton = new JButton("Rename…");
+        renameButton.setToolTipText(
+                "Rename this device (a-z, 0-9, _); its folder is renamed with it");
+        renameButton.addActionListener(e -> renameDevice(device));
+        row.add(renameButton);
         JButton removeButton = new JButton("Remove");
         removeButton.addActionListener(e -> {
             if (JOptionPane.showConfirmDialog(this,
@@ -246,6 +273,26 @@ public final class ServerWindow extends JFrame {
         });
         row.add(removeButton);
         return row;
+    }
+
+    /** Rename a device (and its folder, when it is scoped to its own). */
+    private void renameDevice(ttdrop.server.Devices.Device device) {
+        String input = (String) JOptionPane.showInputDialog(this,
+                "New name for \"" + device.name() + "\" (lower-case a-z, 0-9, _):",
+                "ttDrop", JOptionPane.PLAIN_MESSAGE, null, null, device.name());
+        if (input == null || input.equals(device.name())) {
+            return;
+        }
+        String error = server.devices().rename(device.id(), input.trim(), server.getFileRoot());
+        if (error != null) {
+            String message = switch (error) {
+                case "name" -> "Names may only use lower-case a-z, 0-9 and _ (1-32 chars).";
+                case "taken" -> "That name is already used by another device.";
+                case "dir" -> "The device's folder could not be renamed (does the target exist?).";
+                default -> "Rename failed.";
+            };
+            JOptionPane.showMessageDialog(this, message, "ttDrop", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private javax.swing.JCheckBox permissionBox(String label, String tip, boolean value,
@@ -266,8 +313,80 @@ public final class ServerWindow extends JFrame {
             return;
         }
         String rel = fileRoot.relativize(chosen).toString().replace('\\', '/');
-        server.devices().update(new ttdrop.server.Devices.Device(
-                device.id(), device.name(), rel, device.read(), device.write(), device.browse()));
+        updateDevice(device.id(), d -> d.withRelPath(rel));
+    }
+
+    /** Applies a change to the latest registry state of a device. */
+    private void updateDevice(String id,
+            java.util.function.UnaryOperator<ttdrop.server.Devices.Device> change) {
+        ttdrop.server.Devices.Device current = server.devices().get(id);
+        if (current != null) {
+            server.devices().update(change.apply(current));
+        }
+    }
+
+    /**
+     * Checklist of the device's top-level subfolders with Read/Write
+     * boxes; everything is allowed unless unticked (deny list, so
+     * folders created later are allowed automatically).
+     */
+    private void showSubfoldersDialog(String deviceId) {
+        ttdrop.server.Devices.Device device = server.devices().get(deviceId);
+        if (device == null) {
+            return;
+        }
+        java.nio.file.Path deviceRoot = device.resolveRoot(server.getFileRoot());
+        java.util.List<String> subs = new java.util.ArrayList<>();
+        try (var children = java.nio.file.Files.list(deviceRoot)) {
+            for (java.nio.file.Path child : (Iterable<java.nio.file.Path>) children.sorted()::iterator) {
+                String name = child.getFileName().toString();
+                if (java.nio.file.Files.isDirectory(child) && !name.startsWith(".")) {
+                    subs.add(name);
+                }
+            }
+        } catch (java.io.IOException ignored) {
+            // unreadable device folder: show it empty
+        }
+        javax.swing.JDialog dialog = new javax.swing.JDialog(this,
+                "Subfolders \"" + device.name() + "\" may use", false);
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
+        if (subs.isEmpty()) {
+            panel.add(new JLabel("No subfolders yet — everything inside is readable and writable."));
+        } else {
+            panel.add(new JLabel("Untick to block; new subfolders are always allowed."));
+            panel.add(Box.createVerticalStrut(6));
+        }
+        for (String sub : subs) {
+            JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
+            JLabel nameLabel = new JLabel(sub + "/");
+            row.add(nameLabel);
+            row.add(permissionBox("Read", "Allow reading " + sub,
+                    !device.denyRead().contains(sub),
+                    v -> updateDevice(deviceId, d -> d.withDeny(
+                            toggled(d.denyRead(), sub, !v), d.denyWrite()))));
+            row.add(permissionBox("Write", "Allow writing into " + sub,
+                    !device.denyWrite().contains(sub),
+                    v -> updateDevice(deviceId, d -> d.withDeny(
+                            d.denyRead(), toggled(d.denyWrite(), sub, !v)))));
+            panel.add(row);
+        }
+        dialog.add(new javax.swing.JScrollPane(panel));
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
+    private static java.util.Set<String> toggled(java.util.Set<String> set, String name,
+            boolean deny) {
+        java.util.Set<String> out = new java.util.TreeSet<>(set);
+        if (deny) {
+            out.add(name);
+        } else {
+            out.remove(name);
+        }
+        return out;
     }
 
     /** Pick a new file root (only while stopped); persisted in config. */

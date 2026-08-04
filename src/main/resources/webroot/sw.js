@@ -1,8 +1,8 @@
 "use strict";
 
-const CACHE = "ttdrop-shell-v13";
+const CACHE = "ttdrop-shell-v14";
 const SHELL = ["/", "/style.css", "/app.js", "/uploader.js", "/downloader.js",
-"/cert-help.html", "/manifest.webmanifest", "/icon.svg"];
+"/cert-help.html", "/manifest.webmanifest", "/icon.svg", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
 event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
