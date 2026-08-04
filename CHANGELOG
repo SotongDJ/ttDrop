@@ -8,6 +8,22 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.19.0 — reliable embedded font on every machine (2026-08-04)
+
+- Fixed: on some machines (observed on Windows) the GUI silently fell
+  back to the system font instead of the embedded Noto Sans TC.
+  Font.createFont(InputStream) spools through the machine's temp
+  directory and can fail quietly; the font is now extracted once to
+  `~/.config/ttdrop/NotoSansTC-Regular.otf` and loaded from there,
+  with the stream method and finally the system font as fallbacks —
+  and every fallback prints a console warning instead of being
+  silent. A loaded font is also sanity-checked for CJK coverage.
+- Diagnosable theming: startup prints `ttDrop UI font: <family>`, and
+  hovering the Stopped/Running status label shows the same — if it
+  does not say Noto Sans TC, the console says why.
+- L&F test now asserts the embedded family on every component font
+  key (Label/Button/CheckBox/TextField/ComboBox/TitledBorder).
+
 ## v0.18.0 — named devices and per-subfolder access (2026-08-04)
 
 - Pairing now asks the user to name the device: 1–32 characters of

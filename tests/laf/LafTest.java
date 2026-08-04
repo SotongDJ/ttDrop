@@ -54,6 +54,11 @@ public final class LafTest {
         UIManager.setLookAndFeel(new JaCrossLaf(light));
         check("defaultFont is the embedded family",
                 UIManager.getFont("defaultFont").getFamily().contains("Noto Sans TC"));
+        for (String key : new String[] {"Label.font", "Button.font", "CheckBox.font",
+                "TextField.font", "ComboBox.font", "TitledBorder.font"}) {
+            check(key + " is the embedded family",
+                    UIManager.getFont(key).getFamily().contains("Noto Sans TC"));
+        }
 
         BufferedImage buttonImg = render(new JButton("Start"), 120, 40);
         check("button renders", distinctColors(buttonImg) > 2);
