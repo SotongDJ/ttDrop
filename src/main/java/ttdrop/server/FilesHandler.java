@@ -19,6 +19,34 @@ import java.util.stream.Stream;
  * traversal outside it is rejected.
  */
 public final class FilesHandler implements HttpHandler {
+    /**
+     * Extensions safe to display inline, mapped to their MIME types.
+     * A whitelist on purpose: rendering arbitrary uploaded content
+     * (HTML above all) inline on this origin would be stored XSS
+     * against the PWA. Everything not listed here downloads as an
+     * attachment, and inline responses additionally carry
+     * {@code Content-Security-Policy: sandbox} so even scriptable
+     * formats (SVG) cannot run code. Text-like formats are served as
+     * text/plain deliberately.
+     */
+    private static final java.util.Map<String, String> VIEWABLE = java.util.Map.ofEntries(
+            java.util.Map.entry("png", "image/png"),
+            java.util.Map.entry("jpg", "image/jpeg"),
+            java.util.Map.entry("jpeg", "image/jpeg"),
+            java.util.Map.entry("gif", "image/gif"),
+            java.util.Map.entry("webp", "image/webp"),
+            java.util.Map.entry("avif", "image/avif"),
+            java.util.Map.entry("bmp", "image/bmp"),
+            java.util.Map.entry("ico", "image/x-icon"),
+            java.util.Map.entry("svg", "image/svg+xml"),
+            java.util.Map.entry("pdf", "application/pdf"),
+            java.util.Map.entry("txt", "text/plain; charset=utf-8"),
+            java.util.Map.entry("md", "text/plain; charset=utf-8"),
+            java.util.Map.entry("log", "text/plain; charset=utf-8"),
+            java.util.Map.entry("csv", "text/plain; charset=utf-8"),
+            java.util.Map.entry("json", "text/plain; charset=utf-8"),
+            java.util.Map.entry("xml", "text/plain; charset=utf-8"));
+
     private final Path root;
     private final java.util.function.BooleanSupplier fileOps;
 
@@ -94,9 +122,18 @@ public final class FilesHandler implements HttpHandler {
         String etag = "\"" + size + "-" + Files.getLastModifiedTime(file).toMillis() + "\"";
         ex.getResponseHeaders().set("Accept-Ranges", "bytes");
         ex.getResponseHeaders().set("ETag", etag);
-        ex.getResponseHeaders().set("Content-Type", "application/octet-stream");
-        ex.getResponseHeaders().set("Content-Disposition",
-                "attachment; filename*=UTF-8''" + URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20"));
+        int dot = name.lastIndexOf('.');
+        String viewableType = dot < 0 ? null : VIEWABLE.get(name.substring(dot + 1).toLowerCase());
+        String encoded = URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20");
+        if (viewableType != null) {
+            ex.getResponseHeaders().set("Content-Type", viewableType);
+            ex.getResponseHeaders().set("Content-Disposition", "inline; filename*=UTF-8''" + encoded);
+            ex.getResponseHeaders().set("Content-Security-Policy", "sandbox");
+            ex.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
+        } else {
+            ex.getResponseHeaders().set("Content-Type", "application/octet-stream");
+            ex.getResponseHeaders().set("Content-Disposition", "attachment; filename*=UTF-8''" + encoded);
+        }
 
         long from = 0;
         long to = size - 1;
