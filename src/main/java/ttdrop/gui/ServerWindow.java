@@ -38,6 +38,7 @@ public final class ServerWindow extends JFrame {
     private final javax.swing.JCheckBox httpsBox = new javax.swing.JCheckBox("HTTPS");
     private final javax.swing.JCheckBox autostartBox = new javax.swing.JCheckBox("Start on launch");
     private final javax.swing.JCheckBox fileOpsBox = new javax.swing.JCheckBox("Allow browser file management");
+    private final javax.swing.JCheckBox dirBrowseBox = new javax.swing.JCheckBox("Allow directory browsing");
     private final JButton toggleButton = new JButton("Start");
     private final JButton rootButton = new JButton("Change…");
     private final JLabel rootLabel = new JLabel();
@@ -59,6 +60,9 @@ public final class ServerWindow extends JFrame {
         this.fileOpsBox.setSelected(server.isFileOpsEnabled());
         this.fileOpsBox.setToolTipText(
                 "Let devices rename and delete files in the shared folder from their browser (off by default)");
+        this.dirBrowseBox.setSelected(server.isDirBrowseEnabled());
+        this.dirBrowseBox.setToolTipText(
+                "Show browsable folder listing pages when a /files/ URL is opened directly (off by default)");
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         JPanel main = new JPanel();
@@ -83,6 +87,7 @@ public final class ServerWindow extends JFrame {
         main.add(controls);
         JPanel permissions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         permissions.add(fileOpsBox);
+        permissions.add(dirBrowseBox);
         main.add(permissions);
         main.add(Box.createVerticalStrut(8));
 
@@ -100,11 +105,24 @@ public final class ServerWindow extends JFrame {
         toggleButton.addActionListener(e -> toggle());
         rootButton.addActionListener(e -> chooseRoot());
         addressBox.addActionListener(e -> updateUrl());
-        // Takes effect immediately, even while the server is running.
+        // Both take effect immediately, even while the server is running.
         fileOpsBox.addActionListener(e -> {
             server.setFileOpsEnabled(fileOpsBox.isSelected());
             config.setFileOps(fileOpsBox.isSelected());
             config.save();
+        });
+        dirBrowseBox.addActionListener(e -> {
+            server.setDirBrowseEnabled(dirBrowseBox.isSelected());
+            config.setDirBrowse(dirBrowseBox.isSelected());
+            config.save();
+        });
+        urlLabel.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+        urlLabel.setToolTipText("Open in your default browser");
+        urlLabel.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                openInBrowser();
+            }
         });
 
         add(main, BorderLayout.CENTER);
@@ -127,6 +145,7 @@ public final class ServerWindow extends JFrame {
         java.nio.file.Path newRoot = chooser.getSelectedFile().toPath();
         server = new TtDropServer(newRoot);
         server.setFileOpsEnabled(fileOpsBox.isSelected());
+        server.setDirBrowseEnabled(dirBrowseBox.isSelected());
         config.setRoot(newRoot);
         config.save();
         rootLabel.setText("File root: " + server.getFileRoot());
@@ -213,9 +232,35 @@ public final class ServerWindow extends JFrame {
             return;
         }
         String url = server.scheme() + "://" + selected + ":" + server.getPort() + "/";
-        urlLabel.setText(url);
+        // Rendered as a link: clicking it opens the default browser.
+        urlLabel.setText("<html><a href=\"" + url + "\">" + url + "</a></html>");
         qrPanel.show(url);
         pack();
+    }
+
+    /** Opens the currently shown URL in the user's default browser. */
+    private void openInBrowser() {
+        Object selected = addressBox.getSelectedItem();
+        if (selected == null || !server.isRunning()) {
+            return;
+        }
+        String url = server.scheme() + "://" + selected + ":" + server.getPort() + "/";
+        try {
+            if (java.awt.Desktop.isDesktopSupported()
+                    && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
+                return;
+            }
+            // Linux desktops without java.awt.Desktop browse support.
+            String os = System.getProperty("os.name", "").toLowerCase();
+            String[] cmd = os.contains("win") ? new String[] {"rundll32", "url.dll,FileProtocolHandler", url}
+                    : os.contains("mac") ? new String[] {"open", url}
+                    : new String[] {"xdg-open", url};
+            new ProcessBuilder(cmd).start();
+        } catch (IOException ioe) {
+            JOptionPane.showMessageDialog(this, "Could not open browser: " + ioe.getMessage(),
+                    "ttDrop", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     /** Paints a QR code, 4x4 px per module plus the standard quiet zone. */

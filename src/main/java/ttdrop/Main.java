@@ -29,6 +29,7 @@ public final class Main {
         boolean https = config.getHttps(true);
         boolean headless = false;
         boolean fileOps = config.getFileOps(false);
+        boolean dirBrowse = config.getDirBrowse(false);
         Path rootFlag = null;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -38,11 +39,14 @@ public final class Main {
                 case "--http" -> https = false;
                 case "--fileops" -> fileOps = true;
                 case "--no-fileops" -> fileOps = false;
+                case "--browse" -> dirBrowse = true;
+                case "--no-browse" -> dirBrowse = false;
                 case "--root" -> rootFlag = Path.of(args[++i]);
                 default -> {
                     System.err.println("Unknown argument: " + args[i]);
                     System.err.println("Usage: java -jar ttdrop.jar [--port <n>] [--root <dir>]"
-                            + " [--headless] [--https|--http] [--fileops|--no-fileops]");
+                            + " [--headless] [--https|--http] [--fileops|--no-fileops]"
+                            + " [--browse|--no-browse]");
                     System.exit(2);
                 }
             }
@@ -59,6 +63,7 @@ public final class Main {
         }
         TtDropServer server = new TtDropServer(fileRoot);
         server.setFileOpsEnabled(fileOps);
+        server.setDirBrowseEnabled(dirBrowse);
 
         if (headless || GraphicsEnvironment.isHeadless()) {
             try {

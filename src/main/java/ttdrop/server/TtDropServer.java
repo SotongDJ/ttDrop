@@ -23,6 +23,8 @@ public final class TtDropServer {
     private boolean https;
     /** Browser rename/delete; default OFF, toggleable while running. */
     private volatile boolean fileOpsEnabled;
+    /** HTML directory listings under /files/; default OFF, toggleable while running. */
+    private volatile boolean dirBrowseEnabled;
 
     public TtDropServer(Path fileRoot) {
         this.fileRoot = fileRoot.toAbsolutePath().normalize();
@@ -46,7 +48,8 @@ public final class TtDropServer {
         }
         this.https = useHttps;
         http.createContext("/", new WebRootHandler());
-        http.createContext("/files/", new FilesHandler(fileRoot, this::isFileOpsEnabled));
+        http.createContext("/files/",
+                new FilesHandler(fileRoot, this::isFileOpsEnabled, this::isDirBrowseEnabled));
         http.createContext("/api/upload/", new UploadHandler(fileRoot));
         http.createContext("/api/files/", new FileOpsHandler(fileRoot, this::isFileOpsEnabled));
         http.createContext("/api/zip", new ZipHandler(fileRoot));
@@ -66,6 +69,14 @@ public final class TtDropServer {
 
     public void setFileOpsEnabled(boolean enabled) {
         this.fileOpsEnabled = enabled;
+    }
+
+    public boolean isDirBrowseEnabled() {
+        return dirBrowseEnabled;
+    }
+
+    public void setDirBrowseEnabled(boolean enabled) {
+        this.dirBrowseEnabled = enabled;
     }
 
     /** URL scheme of the running server, for building shareable URLs. */

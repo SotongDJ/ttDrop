@@ -85,6 +85,16 @@ public final class Config {
         props.setProperty("fileOps", String.valueOf(fileOps));
     }
 
+    /** Browsable HTML directory listings under /files/. Default OFF. */
+    public boolean getDirBrowse(boolean fallback) {
+        String value = props.getProperty("dirBrowse");
+        return value == null ? fallback : Boolean.parseBoolean(value);
+    }
+
+    public void setDirBrowse(boolean dirBrowse) {
+        props.setProperty("dirBrowse", String.valueOf(dirBrowse));
+    }
+
     public boolean getAutostart(boolean fallback) {
         String value = props.getProperty("autostart");
         return value == null ? fallback : Boolean.parseBoolean(value);

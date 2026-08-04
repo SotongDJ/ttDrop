@@ -8,6 +8,31 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.14.0 — directory browsing, GitHub-style lists, bilingual README (2026-08-04)
+
+- New "Allow directory browsing" toggle (default OFF; GUI checkbox,
+  `--browse`/`--no-browse` flags, persisted as `dirBrowse`): when on,
+  opening a `/files/` directory URL in a browser shows a server-rendered
+  listing page with breadcrumbs and working links; whitelisted types
+  linked from it display inline. The PWA's JSON listings are unaffected
+  either way (content negotiation via the Accept header), and the pages
+  carry a scripts-forbidden CSP with all names escaped.
+- File lists restyled after the GitHub repository page — bordered
+  rounded list, folders first, folder/file icons, muted size and
+  "n minutes ago" columns — both in the app and in the new directory
+  listing pages.
+- The URL shown in the server window is now a link: clicking it opens
+  the page in the default browser (java.awt.Desktop with
+  xdg-open/open/rundll32 fallbacks).
+- Webroot code style mandate applied: no indentation and no comments in
+  served HTML/JS/CSS, lines under 100 characters, UTF-8 declared, and a
+  privacy note at the end of each page stating that no external
+  libraries, frameworks, fonts, or APIs are used.
+- README.md is now bilingual: English (UK) and Traditional Chinese
+  (Taiwan glossary), covering the new toggles and styling.
+- New `dir-browse` browser test (default-off posture plus enabled-mode
+  navigation); full suite green over HTTP and HTTPS.
+
 ## v0.13.0 — inline viewing for whitelisted types on /files/ (2026-08-04)
 
 - Opening a `/files/` URL directly in the browser now displays
