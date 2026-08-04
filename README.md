@@ -26,9 +26,13 @@ and page reloads.
    default 4646; `--http` to disable TLS).
 4. On another device, open the URL the window shows — or scan the QR
    code it displays (`https://<your-ip>:4646/`). Accept the one-time
-   certificate warning (ttDrop generates its own self-signed
-   certificate; nothing leaves your network). Drop files onto the page
-   to send; tap listed files to download.
+   certificate warning, or better: tap **Install the ttDrop
+   certificate** in the page footer (also at `/ca.crt`) and trust it —
+   ttDrop generates its own per-user certificate authority, so
+   installing that one certificate removes the warnings on every
+   future session and lets the page install as an app. Nothing leaves
+   your network. Drop files onto the page to send; tap listed files to
+   download.
 
 ## How transfers work
 

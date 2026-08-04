@@ -24,14 +24,17 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 - Port-conflict handling: when the chosen port is taken by another
   program, the GUI offers an OS-assigned free port and headless mode
   falls back to one automatically.
-- HTTPS serving, on by default: a self-signed certificate (SANs for
-  localhost and the machine's LAN IPs) is generated once with the JDK's
-  keytool into `~/.config/ttdrop/keystore.p12` and reused. GUI checkbox
-  and `--https`/`--http` flags; the choice persists in config. URLs and
-  QR codes follow the active scheme. Devices must accept the
-  certificate once; service-worker install stays unavailable on
-  merely-accepted (not OS-trusted) certs — transfers, OPFS staging, and
-  reload-resume all work. Browser test suite can run over TLS via
+- HTTPS serving, on by default: the first HTTPS run generates a
+  reusable per-user Certificate Authority (`~/.config/ttdrop/ca.p12`,
+  exported as PEM `ca.crt`) with the JDK's keytool, then issues the
+  server certificate from it (SANs for localhost and the machine's LAN
+  IPs, ≤825-day validity). Installing the CA certificate once on a
+  device — served at `/ca.crt`, linked from the PWA footer — makes
+  every ttDrop session trusted, present and future, unlocking service
+  workers and PWA install; deleting `keystore.p12` re-issues the server
+  certificate under the same CA. GUI checkbox and `--https`/`--http`
+  flags; the choice persists in config. URLs and QR codes follow the
+  active scheme. Browser test suite can run over TLS via
   `TTDROP_SCHEME=https`.
 
 ## v0.2.1 — resumable downloads and config persistence (2026-08-04)
