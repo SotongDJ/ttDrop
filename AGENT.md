@@ -144,6 +144,11 @@ https://localhost:<port>/` must succeed with no `-k`.
   there are downloadable. Resolve the file root from the actual working
   directory at runtime; never hard-code paths, and handle both Windows
   drive-letter paths and Unix paths.
+- File-root override precedence (implemented in `Main`): the
+  `--root <dir>` flag, then the persisted GUI chooser selection
+  (config `root`), then the working directory. The GUI can change the
+  shared folder while stopped and offers a persisted
+  "Start on launch" autostart option.
 - The **webroot does not exist on disk**. The PWA assets (HTML, JS, CSS,
   manifest, service worker, icons) are embedded in the jar and served by
   the server **on demand** from its resources. Do not scaffold a webroot
@@ -413,5 +418,3 @@ Update this map when the source tree grows.
   through the browser warning) would unlock service workers and PWA
   install on LAN devices. Consider an endpoint exporting the cert plus
   per-platform install instructions.
-- GUI conveniences: choose file root from the window, QR code for the
-  LAN URL, autostart option.

@@ -8,6 +8,17 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.7.0 — choose the shared folder, autostart, --root flag (2026-08-04)
+
+- The server window can change the shared folder ("Change…" next to the
+  file root, while stopped); the choice persists in config and is used
+  on the next launch.
+- File-root precedence: `--root <dir>` flag, then the persisted chooser
+  selection, then the working directory the jar was started in. Invalid
+  roots are rejected at startup with a clear message.
+- "Start on launch" option: when enabled, the server starts
+  automatically as soon as the window opens (persisted in config).
+
 ## v0.6.0 — manage server files from the browser (2026-08-04)
 
 - Rename (✎) and delete (🗑) buttons on every server-list entry, with

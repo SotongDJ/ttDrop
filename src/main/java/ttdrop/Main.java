@@ -28,21 +28,32 @@ public final class Main {
         int port = config.getPort(DEFAULT_PORT);
         boolean https = config.getHttps(true);
         boolean headless = false;
+        Path rootFlag = null;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--port" -> port = Integer.parseInt(args[++i]);
                 case "--headless" -> headless = true;
                 case "--https" -> https = true;
                 case "--http" -> https = false;
+                case "--root" -> rootFlag = Path.of(args[++i]);
                 default -> {
                     System.err.println("Unknown argument: " + args[i]);
-                    System.err.println("Usage: java -jar ttdrop.jar [--port <n>] [--headless] [--https|--http]");
+                    System.err.println(
+                            "Usage: java -jar ttdrop.jar [--port <n>] [--root <dir>] [--headless] [--https|--http]");
                     System.exit(2);
                 }
             }
         }
 
-        Path fileRoot = Path.of(System.getProperty("user.dir"));
+        // File-root precedence: --root flag, then the persisted chooser
+        // selection, then the working directory the jar was started in.
+        Path fileRoot = rootFlag != null ? rootFlag
+                : config.getRoot() != null ? config.getRoot()
+                : Path.of(System.getProperty("user.dir"));
+        if (!java.nio.file.Files.isDirectory(fileRoot)) {
+            System.err.println("Not a directory: " + fileRoot);
+            System.exit(2);
+        }
         TtDropServer server = new TtDropServer(fileRoot);
 
         if (headless || GraphicsEnvironment.isHeadless()) {
