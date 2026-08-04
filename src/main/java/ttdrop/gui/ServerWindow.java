@@ -35,17 +35,21 @@ public final class ServerWindow extends JFrame {
     private final TtDropServer server;
     private final Config config;
     private final JTextField portField;
+    private final javax.swing.JCheckBox httpsBox = new javax.swing.JCheckBox("HTTPS");
     private final JButton toggleButton = new JButton("Start");
     private final JLabel statusLabel = new JLabel("Stopped");
     private final JComboBox<String> addressBox = new JComboBox<>();
     private final JLabel urlLabel = new JLabel(" ");
     private final QrPanel qrPanel = new QrPanel();
 
-    public ServerWindow(TtDropServer server, int initialPort, Config config) {
+    public ServerWindow(TtDropServer server, int initialPort, boolean initialHttps, Config config) {
         super("ttDrop");
         this.server = server;
         this.config = config;
         this.portField = new JTextField(String.valueOf(initialPort), 6);
+        this.httpsBox.setSelected(initialHttps);
+        this.httpsBox.setToolTipText(
+                "Serve over TLS with a self-signed certificate (devices must accept it once)");
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         JPanel main = new JPanel();
@@ -60,6 +64,7 @@ public final class ServerWindow extends JFrame {
         JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         controls.add(new JLabel("Port:"));
         controls.add(portField);
+        controls.add(httpsBox);
         controls.add(toggleButton);
         controls.add(statusLabel);
         main.add(controls);
@@ -90,6 +95,7 @@ public final class ServerWindow extends JFrame {
             statusLabel.setText("Stopped");
             toggleButton.setText("Start");
             portField.setEnabled(true);
+            httpsBox.setEnabled(true);
             addressBox.setVisible(false);
             qrPanel.setVisible(false);
             urlLabel.setText(" ");
@@ -133,12 +139,14 @@ public final class ServerWindow extends JFrame {
     }
 
     private void startOn(int port) throws IOException {
-        server.start(port);
+        server.start(port, httpsBox.isSelected());
         config.setPort(port);
+        config.setHttps(httpsBox.isSelected());
         config.save();
         statusLabel.setText("Running");
         toggleButton.setText("Stop");
         portField.setEnabled(false);
+        httpsBox.setEnabled(false);
 
         List<String> addresses = new ArrayList<>(TtDropServer.lanAddresses());
         addresses.add("localhost");
@@ -157,7 +165,7 @@ public final class ServerWindow extends JFrame {
         if (selected == null || !server.isRunning()) {
             return;
         }
-        String url = "http://" + selected + ":" + server.getPort() + "/";
+        String url = server.scheme() + "://" + selected + ":" + server.getPort() + "/";
         urlLabel.setText(url);
         qrPanel.show(url);
         pack();

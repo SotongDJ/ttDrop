@@ -16,6 +16,11 @@ public final class Config {
     private static final Path DIR = Path.of(System.getProperty("user.home"), ".config", "ttdrop");
     private static final Path FILE = DIR.resolve("config.properties");
 
+    /** The per-user config directory (also holds the TLS keystore). */
+    public static Path dir() {
+        return DIR;
+    }
+
     private final Properties props = new Properties();
 
     private Config() {
@@ -54,5 +59,14 @@ public final class Config {
 
     public void setPort(int port) {
         props.setProperty("port", String.valueOf(port));
+    }
+
+    public boolean getHttps(boolean fallback) {
+        String value = props.getProperty("https");
+        return value == null ? fallback : Boolean.parseBoolean(value);
+    }
+
+    public void setHttps(boolean https) {
+        props.setProperty("https", String.valueOf(https));
     }
 }

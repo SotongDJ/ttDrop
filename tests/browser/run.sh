@@ -10,13 +10,18 @@ set -eu
 REPO_ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 PORT="${TTDROP_PORT:-4655}"
 SERVE_DIR="${TTDROP_DIR:-$(mktemp -d)}"
+# TTDROP_SCHEME=https runs the whole suite over TLS (self-signed cert,
+# accepted via ignoreHTTPSErrors in the tests). Default http.
+SCHEME="${TTDROP_SCHEME:-http}"
+SCHEME_FLAG="--http"
+[ "$SCHEME" = "https" ] && SCHEME_FLAG="--https"
 
 # Prefer the project's pixi-managed JDK (matches the build's class version).
 JAVA=java
 [ -x "$REPO_ROOT/.pixi/envs/default/bin/java" ] && JAVA="$REPO_ROOT/.pixi/envs/default/bin/java"
 
 cd "$SERVE_DIR"
-"$JAVA" -jar "$REPO_ROOT/dist/ttdrop.jar" --headless --port "$PORT" &
+"$JAVA" -jar "$REPO_ROOT/dist/ttdrop.jar" --headless --port "$PORT" "$SCHEME_FLAG" &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 sleep 3

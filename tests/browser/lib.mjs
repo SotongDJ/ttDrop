@@ -19,9 +19,14 @@ export async function launchBrowser() {
   return chromium.launch(options);
 }
 
+/* Context options every test should use: the server's self-signed cert
+ * must be accepted when running the suite over HTTPS. */
+export const CONTEXT_OPTIONS = { ignoreHTTPSErrors: true };
+
 export const PORT = process.env.TTDROP_PORT || "4646";
+export const SCHEME = process.env.TTDROP_SCHEME || "http";
 export const SERVE_DIR = process.env.TTDROP_DIR;
-export const BASE = `http://localhost:${PORT}`;
+export const BASE = `${SCHEME}://localhost:${PORT}`;
 
 if (!SERVE_DIR) {
   console.error("TTDROP_DIR must point at the running server's file root");

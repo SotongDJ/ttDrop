@@ -17,6 +17,11 @@ import ttdrop.util.QrCode;
  */
 public final class QrPngHandler implements HttpHandler {
     private static final int MAX_TEXT = 80;
+    private final java.util.function.Supplier<String> scheme;
+
+    public QrPngHandler(java.util.function.Supplier<String> scheme) {
+        this.scheme = scheme;
+    }
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
@@ -32,7 +37,7 @@ public final class QrPngHandler implements HttpHandler {
                     ex.sendResponseHeaders(400, -1);
                     return;
                 }
-                text = "http://" + host + "/";
+                text = scheme.get() + "://" + host + "/";
             }
             if (text.length() > MAX_TEXT) {
                 ex.sendResponseHeaders(400, -1);

@@ -91,6 +91,24 @@ is a core design requirement, in both directions (upload and download):
   the meta is marked `delivered` and cleanup runs on the next page load.
   Without OPFS, file links fall back to plain navigation downloads.
 
+### HTTPS
+
+The server serves **HTTPS by default** (`--http` or the GUI checkbox
+opts out; the choice persists in config). `ttdrop.server.TlsSupport`
+generates a self-signed certificate once — via the JDK's `keytool`,
+resolved from `java.home` — into `~/.config/ttdrop/keystore.p12`
+(PKCS12, fixed password: it guards a self-signed LAN key in the user's
+own config dir) with SANs for `localhost`, `127.0.0.1`, and the LAN IPs
+present at generation time, and reuses it afterwards. Delete the
+keystore to regenerate (e.g. after the machine's IP changes).
+
+Caveats to preserve in any related change: devices must accept the
+certificate once (browser interstitial); a merely-accepted cert still
+gives a secure context — OPFS staging and reload-resume work — but
+Chromium refuses **service-worker** scripts over it, so the app must
+keep registering the SW best-effort and degrading gracefully. URLs and
+QR codes must always follow `TtDropServer.scheme()`.
+
 ### Server runtime layout
 
 - The server ships as a **GUI jar**. The user **places the jar in the
@@ -363,11 +381,10 @@ Update this map when the source tree grows.
 
 ## Known gaps / good first tasks
 
-- Serving over plain HTTP means non-localhost devices (e.g. a phone on
-  the LAN) do not get a secure context, which blocks service workers and
-  OPFS in the browser — transfers work but without reload-resume or
-  install. Decide how to handle this (self-signed HTTPS, graceful
-  degradation, or both) and document the decision here.
+- Trusting the ttDrop certificate at the OS level (instead of tapping
+  through the browser warning) would unlock service workers and PWA
+  install on LAN devices. Consider an endpoint exporting the cert plus
+  per-platform install instructions.
 - Folder uploads (directory picker / relative paths), transfer
   cancellation, and delete/rename of server files from the PWA.
 - GUI conveniences: choose file root from the window, QR code for the

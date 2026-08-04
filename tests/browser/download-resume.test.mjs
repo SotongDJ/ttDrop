@@ -1,7 +1,7 @@
 /* Interrupts a managed download after one ranged chunk, reloads, and
  * verifies resume from OPFS, the saved file's hash, and the deferred
  * staging cleanup on the following visit. */
-import { launchBrowser, BASE, SERVE_DIR } from "./lib.mjs";
+import { launchBrowser, CONTEXT_OPTIONS, BASE, SERVE_DIR } from "./lib.mjs";
 import { createHash, randomBytes } from "node:crypto";
 import { writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,7 +12,7 @@ writeFileSync(serverFile, payload);
 const srcHash = createHash("sha256").update(payload).digest("hex");
 
 const browser = await launchBrowser();
-const context = await browser.newContext();
+const context = await browser.newContext(CONTEXT_OPTIONS);
 const page = await context.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
