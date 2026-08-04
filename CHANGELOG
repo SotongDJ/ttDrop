@@ -8,6 +8,14 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.10.0 — per-platform certificate install guide (2026-08-04)
+
+- New `/cert-help.html` page (embedded, offline-capable) with
+  step-by-step CA install instructions for iPhone/iPad, Android,
+  Windows, macOS, and Linux, plus how to undo and what to do when the
+  server certificate is re-issued. The PWA footer's install link now
+  leads here instead of directly to the raw certificate.
+
 ## v0.9.0 — browser file management off by default (2026-08-04)
 
 - Browser rename/delete is now an explicit opt-in: a new
