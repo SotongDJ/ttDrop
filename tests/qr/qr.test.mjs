@@ -49,7 +49,8 @@ for (const text of samples) {
 rmSync(out, { force: true });
 
 // Live /qr.png endpoint: start a headless server, decode its QR.
-const server = spawn(java, ["-jar", jar, "--headless", "--port", "0"], { cwd: tmpdir() });
+// --http: this test talks plain fetch() without a CA bundle.
+const server = spawn(java, ["-jar", jar, "--headless", "--http", "--port", "0"], { cwd: tmpdir() });
 const port = await new Promise((resolve, reject) => {
   let buf = "";
   const timer = setTimeout(() => reject(new Error("server did not start")), 15000);
