@@ -16,7 +16,8 @@ const java = process.env.JAVA || (existsSync(pixiJava) ? pixiJava : "java");
 const serveDir = mkdtempSync(join(tmpdir(), "ttdrop-nofileops-"));
 writeFileSync(join(serveDir, "hands-off.txt"), "protected");
 
-const server = spawn(java, ["-jar", jar, "--headless", "--http", "--port", "0"], { cwd: serveDir });
+const server = spawn(java, ["-jar", jar, "--headless", "--http", "--port", "0", "--open"],
+  { cwd: serveDir });
 const port = await new Promise((resolve, reject) => {
   let buf = "";
   const timer = setTimeout(() => reject(new Error("server did not start")), 15000);

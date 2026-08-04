@@ -49,15 +49,18 @@ public final class FilesHandler implements HttpHandler {
             java.util.Map.entry("json", "text/plain; charset=utf-8"),
             java.util.Map.entry("xml", "text/plain; charset=utf-8"));
 
-    private final Path root;
+    private final Path fileRoot;
     private final java.util.function.BooleanSupplier fileOps;
     private final java.util.function.BooleanSupplier dirBrowse;
+    private final java.util.function.Function<HttpExchange, Devices.Device> auth;
 
-    public FilesHandler(Path root, java.util.function.BooleanSupplier fileOps,
-            java.util.function.BooleanSupplier dirBrowse) {
-        this.root = root;
+    public FilesHandler(Path fileRoot, java.util.function.BooleanSupplier fileOps,
+            java.util.function.BooleanSupplier dirBrowse,
+            java.util.function.Function<HttpExchange, Devices.Device> auth) {
+        this.fileRoot = fileRoot;
         this.fileOps = fileOps;
         this.dirBrowse = dirBrowse;
+        this.auth = auth;
     }
 
     @Override
@@ -68,6 +71,18 @@ public final class FilesHandler implements HttpHandler {
                 ex.sendResponseHeaders(405, -1);
                 return;
             }
+            // Every path is relative to the requesting device's allowed
+            // subtree — an unpaired requester has no subtree at all.
+            Devices.Device device = auth.apply(ex);
+            if (device == null) {
+                sendPlain(ex, 401, "Not paired. Open the ttDrop page and enter a pairing code.");
+                return;
+            }
+            if (!device.read()) {
+                sendPlain(ex, 403, "Reading is not allowed for this device.");
+                return;
+            }
+            Path root = device.resolveRoot(fileRoot);
             String raw = ex.getRequestURI().getPath().substring("/files/".length());
             String decoded = URLDecoder.decode(raw, StandardCharsets.UTF_8);
             Path target = root.resolve(decoded).normalize();
@@ -78,13 +93,14 @@ public final class FilesHandler implements HttpHandler {
             if (Files.isDirectory(target)) {
                 // The PWA asks for application/json explicitly; a browser
                 // navigating to the URL sends Accept: text/html,... — only
-                // that case, and only with the toggle on, gets the index
-                // page. Default posture is unchanged JSON.
+                // that case, and only with the toggle on (global AND
+                // per-device), gets the index page.
                 String accept = ex.getRequestHeaders().getFirst("Accept");
-                if (dirBrowse.getAsBoolean() && accept != null && accept.contains("text/html")) {
-                    sendHtmlListing(ex, target);
+                if (dirBrowse.getAsBoolean() && device.browse()
+                        && accept != null && accept.contains("text/html")) {
+                    sendHtmlListing(ex, root, target);
                 } else {
-                    sendListing(ex, target);
+                    sendListing(ex, device, target);
                 }
             } else if (Files.isRegularFile(target)) {
                 sendFile(ex, target, head);
@@ -94,9 +110,20 @@ public final class FilesHandler implements HttpHandler {
         }
     }
 
-    private void sendListing(HttpExchange ex, Path dir) throws IOException {
-        // fileOps tells the PWA whether to render rename/delete buttons.
-        StringBuilder json = new StringBuilder("{\"fileOps\":" + fileOps.getAsBoolean() + ",\"entries\":[");
+    private static void sendPlain(HttpExchange ex, int code, String message) throws IOException {
+        byte[] body = message.getBytes(StandardCharsets.UTF_8);
+        ex.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+        ex.sendResponseHeaders(code, body.length);
+        try (OutputStream out = ex.getResponseBody()) {
+            out.write(body);
+        }
+    }
+
+    private void sendListing(HttpExchange ex, Devices.Device device, Path dir) throws IOException {
+        // fileOps tells the PWA whether to render rename/delete buttons:
+        // the global toggle AND the device's write grant.
+        StringBuilder json = new StringBuilder(
+                "{\"fileOps\":" + (fileOps.getAsBoolean() && device.write()) + ",\"entries\":[");
         try (Stream<Path> entries = Files.list(dir)) {
             boolean first = true;
             for (Path p : (Iterable<Path>) entries.sorted()::iterator) {
@@ -132,7 +159,7 @@ public final class FilesHandler implements HttpHandler {
      * carries a CSP that forbids everything but inline styles, so a
      * hostile file name can never become script on this origin.
      */
-    private void sendHtmlListing(HttpExchange ex, Path dir) throws IOException {
+    private void sendHtmlListing(HttpExchange ex, Path root, Path dir) throws IOException {
         Path rel = root.relativize(dir);
         StringBuilder base = new StringBuilder("/files/");
         for (Path segment : rel) {

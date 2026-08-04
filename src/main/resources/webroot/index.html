@@ -15,6 +15,19 @@
 <p id="conn-status" class="muted">Connecting…</p>
 </header>
 <main>
+<section id="pair-section" hidden>
+<h2>Pair this device</h2>
+<p class="muted">
+Ask the ttDrop host for a pairing code — scan its QR code with this device's camera,
+or type the code below.
+</p>
+<form id="pair-form">
+<input id="pair-code" type="text" autocomplete="one-time-code"
+placeholder="XXXX-XXXX" aria-label="Pairing code" required>
+<button type="submit">Pair</button>
+</form>
+<p id="pair-error" class="status-err" hidden></p>
+</section>
 <section id="send-section">
 <h2>Send files</h2>
 <div id="drop-zone" tabindex="0" role="button" aria-label="Select or drop files to send">

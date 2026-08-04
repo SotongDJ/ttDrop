@@ -18,9 +18,18 @@ import ttdrop.server.TtDropServer;
  * <p>Arguments: {@code --port <n>} (default 4646), {@code --headless}.
  */
 public final class Main {
+    /** Shown in the window title and startup line; bump with pixi.toml. */
+    public static final String VERSION = "0.16.0";
     public static final int DEFAULT_PORT = 4646;
 
     private Main() {
+    }
+
+    private static void printPairingCode(TtDropServer server) {
+        String code = server.devices().newPairingCode();
+        System.out.println("Pairing code: " + code + " (valid 10 minutes, pairs one device)"
+                + " — open " + server.scheme() + "://<this-host>:" + server.getPort()
+                + "/?pair=" + code);
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
@@ -30,6 +39,7 @@ public final class Main {
         boolean headless = false;
         boolean fileOps = config.getFileOps(false);
         boolean dirBrowse = config.getDirBrowse(false);
+        boolean pairing = config.getPairing(true);
         Path rootFlag = null;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -41,12 +51,14 @@ public final class Main {
                 case "--no-fileops" -> fileOps = false;
                 case "--browse" -> dirBrowse = true;
                 case "--no-browse" -> dirBrowse = false;
+                case "--pairing" -> pairing = true;
+                case "--open" -> pairing = false;
                 case "--root" -> rootFlag = Path.of(args[++i]);
                 default -> {
                     System.err.println("Unknown argument: " + args[i]);
                     System.err.println("Usage: java -jar ttdrop.jar [--port <n>] [--root <dir>]"
                             + " [--headless] [--https|--http] [--fileops|--no-fileops]"
-                            + " [--browse|--no-browse]");
+                            + " [--browse|--no-browse] [--pairing|--open]");
                     System.exit(2);
                 }
             }
@@ -64,6 +76,7 @@ public final class Main {
         TtDropServer server = new TtDropServer(fileRoot);
         server.setFileOpsEnabled(fileOps);
         server.setDirBrowseEnabled(dirBrowse);
+        server.setPairingRequired(pairing);
 
         if (headless || GraphicsEnvironment.isHeadless()) {
             try {
@@ -73,9 +86,15 @@ public final class Main {
                 System.err.println("Port " + port + " is already in use; using free port " + freePort);
                 server.start(freePort, https);
             }
-            System.out.println("ttDrop serving " + fileRoot
+            System.out.println("ttDrop v" + VERSION + " serving " + fileRoot
                     + " at " + server.scheme() + "://localhost:" + server.getPort() + "/"
                     + " on port " + server.getPort());
+            if (pairing) {
+                // Each code pairs one device; a fresh code is printed as
+                // soon as one is consumed.
+                printPairingCode(server);
+                server.devices().setOnChange(() -> printPairingCode(server));
+            }
             Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
             Thread.currentThread().join();
         } else {

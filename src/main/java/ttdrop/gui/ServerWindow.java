@@ -39,6 +39,9 @@ public final class ServerWindow extends JFrame {
     private final javax.swing.JCheckBox autostartBox = new javax.swing.JCheckBox("Start on launch");
     private final javax.swing.JCheckBox fileOpsBox = new javax.swing.JCheckBox("Allow browser file management");
     private final javax.swing.JCheckBox dirBrowseBox = new javax.swing.JCheckBox("Allow directory browsing");
+    private final javax.swing.JCheckBox pairingBox = new javax.swing.JCheckBox("Require device pairing");
+    private final JButton pairButton = new JButton("Pair device…");
+    private final JPanel devicesPanel = new JPanel();
     private final JButton toggleButton = new JButton("Start");
     private final JButton rootButton = new JButton("Change…");
     private final JLabel rootLabel = new JLabel();
@@ -48,7 +51,7 @@ public final class ServerWindow extends JFrame {
     private final QrPanel qrPanel = new QrPanel();
 
     public ServerWindow(TtDropServer server, int initialPort, boolean initialHttps, Config config) {
-        super("ttDrop");
+        super("ttDrop v" + ttdrop.Main.VERSION);
         this.server = server;
         this.config = config;
         this.portField = new JTextField(String.valueOf(initialPort), 6);
@@ -63,6 +66,11 @@ public final class ServerWindow extends JFrame {
         this.dirBrowseBox.setSelected(server.isDirBrowseEnabled());
         this.dirBrowseBox.setToolTipText(
                 "Show browsable folder listing pages when a /files/ URL is opened directly (off by default)");
+        this.pairingBox.setSelected(server.isPairingRequired());
+        this.pairingBox.setToolTipText(
+                "Devices must pair with a one-time code before seeing anything (on by default)");
+        this.pairButton.setToolTipText("Show a one-time pairing code as QR and text");
+        this.pairButton.setEnabled(false);
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         JPanel main = new JPanel();
@@ -89,6 +97,13 @@ public final class ServerWindow extends JFrame {
         permissions.add(fileOpsBox);
         permissions.add(dirBrowseBox);
         main.add(permissions);
+        JPanel pairingRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        pairingRow.add(pairingBox);
+        pairingRow.add(pairButton);
+        main.add(pairingRow);
+        devicesPanel.setLayout(new BoxLayout(devicesPanel, BoxLayout.Y_AXIS));
+        devicesPanel.setBorder(BorderFactory.createTitledBorder("Devices"));
+        main.add(devicesPanel);
         main.add(Box.createVerticalStrut(8));
 
         JPanel addressRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
@@ -116,6 +131,16 @@ public final class ServerWindow extends JFrame {
             config.setDirBrowse(dirBrowseBox.isSelected());
             config.save();
         });
+        pairingBox.addActionListener(e -> {
+            server.setPairingRequired(pairingBox.isSelected());
+            config.setPairing(pairingBox.isSelected());
+            config.save();
+            pairButton.setEnabled(server.isRunning() && pairingBox.isSelected());
+        });
+        pairButton.addActionListener(e -> showPairDialog());
+        server.devices().setOnChange(() ->
+                javax.swing.SwingUtilities.invokeLater(this::rebuildDevices));
+        rebuildDevices();
         urlLabel.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
         urlLabel.setToolTipText("Open in your default browser");
         urlLabel.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -134,6 +159,124 @@ public final class ServerWindow extends JFrame {
         }
     }
 
+    /** One-time pairing code as QR + copyable text (server must run). */
+    private void showPairDialog() {
+        Object selected = addressBox.getSelectedItem();
+        String host = selected == null ? "localhost" : selected.toString();
+        String code = server.devices().newPairingCode();
+        String url = server.scheme() + "://" + host + ":" + server.getPort() + "/?pair="
+                + java.net.URLEncoder.encode(code, java.nio.charset.StandardCharsets.UTF_8);
+
+        javax.swing.JDialog dialog = new javax.swing.JDialog(this, "Pair a device", false);
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
+        panel.add(new JLabel("Scan with the device's camera, or open the site and enter the code:"));
+        panel.add(Box.createVerticalStrut(8));
+        QrPanel qr = new QrPanel();
+        qr.show(url);
+        panel.add(qr);
+        panel.add(Box.createVerticalStrut(8));
+        JTextField codeField = new JTextField(code, 10);
+        codeField.setEditable(false);
+        JButton copyButton = new JButton("Copy");
+        copyButton.addActionListener(e -> java.awt.Toolkit.getDefaultToolkit()
+                .getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(code), null));
+        JPanel codeRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        codeRow.add(new JLabel("Code:"));
+        codeRow.add(codeField);
+        codeRow.add(copyButton);
+        panel.add(codeRow);
+        JLabel hint = new JLabel("Valid 10 minutes; pairs one device.");
+        hint.setFont(hint.getFont().deriveFont(Font.PLAIN));
+        panel.add(hint);
+        dialog.add(panel);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
+    /** Rebuilds the per-device permission rows from the registry. */
+    private void rebuildDevices() {
+        devicesPanel.removeAll();
+        java.util.List<ttdrop.server.Devices.Device> all = server.devices().list();
+        if (all.isEmpty()) {
+            JLabel none = new JLabel("No paired devices yet.");
+            none.setFont(none.getFont().deriveFont(Font.PLAIN));
+            devicesPanel.add(none);
+        }
+        for (ttdrop.server.Devices.Device device : all) {
+            devicesPanel.add(deviceRow(device));
+        }
+        devicesPanel.revalidate();
+        devicesPanel.repaint();
+        pack();
+    }
+
+    private JPanel deviceRow(ttdrop.server.Devices.Device device) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
+        row.add(new JLabel(device.name()));
+        JLabel pathLabel = new JLabel(
+                device.relPath().isEmpty() ? "(everything)" : device.relPath() + "/");
+        pathLabel.setFont(pathLabel.getFont().deriveFont(Font.PLAIN));
+        pathLabel.setToolTipText("The only folder this device can see");
+        row.add(pathLabel);
+        JButton folderButton = new JButton("Folder…");
+        folderButton.setToolTipText("Choose which folder this device may access"
+                + " (the shared folder itself grants everything)");
+        folderButton.addActionListener(e -> chooseDeviceFolder(device));
+        row.add(folderButton);
+        row.add(permissionBox("Read", "Allow downloads and listings", device.read(),
+                v -> server.devices().update(new ttdrop.server.Devices.Device(
+                        device.id(), device.name(), device.relPath(), v, device.write(), device.browse()))));
+        row.add(permissionBox("Write", "Allow uploads (and rename/delete when enabled)", device.write(),
+                v -> server.devices().update(new ttdrop.server.Devices.Device(
+                        device.id(), device.name(), device.relPath(), device.read(), v, device.browse()))));
+        row.add(permissionBox("Browse", "Allow /files/ listing pages for this device", device.browse(),
+                v -> server.devices().update(new ttdrop.server.Devices.Device(
+                        device.id(), device.name(), device.relPath(), device.read(), device.write(), v))));
+        JButton removeButton = new JButton("Remove");
+        removeButton.addActionListener(e -> {
+            if (JOptionPane.showConfirmDialog(this,
+                    "Unpair \"" + device.name() + "\"? The device will need a new code.",
+                    "ttDrop", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+                server.devices().remove(device.id());
+            }
+        });
+        row.add(removeButton);
+        return row;
+    }
+
+    private javax.swing.JCheckBox permissionBox(String label, String tip, boolean value,
+            java.util.function.Consumer<Boolean> onChange) {
+        javax.swing.JCheckBox box = new javax.swing.JCheckBox(label, value);
+        box.setToolTipText(tip);
+        box.addActionListener(e -> onChange.accept(box.isSelected()));
+        return box;
+    }
+
+    /** Restrict a device to a folder inside the shared root. */
+    private void chooseDeviceFolder(ttdrop.server.Devices.Device device) {
+        java.nio.file.Path fileRoot = server.getFileRoot();
+        javax.swing.JFileChooser chooser = new javax.swing.JFileChooser(fileRoot.toFile());
+        chooser.setFileSelectionMode(javax.swing.JFileChooser.DIRECTORIES_ONLY);
+        chooser.setDialogTitle("Folder \"" + device.name() + "\" may access");
+        if (chooser.showOpenDialog(this) != javax.swing.JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        java.nio.file.Path chosen = chooser.getSelectedFile().toPath().toAbsolutePath().normalize();
+        if (!chosen.startsWith(fileRoot)) {
+            JOptionPane.showMessageDialog(this,
+                    "The folder must be inside the shared folder:\n" + fileRoot,
+                    "ttDrop", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        String rel = fileRoot.relativize(chosen).toString().replace('\\', '/');
+        server.devices().update(new ttdrop.server.Devices.Device(
+                device.id(), device.name(), rel, device.read(), device.write(), device.browse()));
+    }
+
     /** Pick a new file root (only while stopped); persisted in config. */
     private void chooseRoot() {
         javax.swing.JFileChooser chooser = new javax.swing.JFileChooser(server.getFileRoot().toFile());
@@ -146,6 +289,10 @@ public final class ServerWindow extends JFrame {
         server = new TtDropServer(newRoot);
         server.setFileOpsEnabled(fileOpsBox.isSelected());
         server.setDirBrowseEnabled(dirBrowseBox.isSelected());
+        server.setPairingRequired(pairingBox.isSelected());
+        server.devices().setOnChange(() ->
+                javax.swing.SwingUtilities.invokeLater(this::rebuildDevices));
+        rebuildDevices();
         config.setRoot(newRoot);
         config.save();
         rootLabel.setText("File root: " + server.getFileRoot());
@@ -160,6 +307,7 @@ public final class ServerWindow extends JFrame {
             portField.setEnabled(true);
             httpsBox.setEnabled(true);
             rootButton.setEnabled(true);
+            pairButton.setEnabled(false);
             addressBox.setVisible(false);
             qrPanel.setVisible(false);
             urlLabel.setText(" ");
@@ -213,6 +361,7 @@ public final class ServerWindow extends JFrame {
         portField.setEnabled(false);
         httpsBox.setEnabled(false);
         rootButton.setEnabled(false);
+        pairButton.setEnabled(pairingBox.isSelected());
 
         List<String> addresses = new ArrayList<>(TtDropServer.lanAddresses());
         addresses.add("localhost");

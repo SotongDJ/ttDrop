@@ -46,12 +46,15 @@ public final class UploadHandler implements HttpHandler {
     private static final Pattern KEY = Pattern.compile("[a-f0-9]{8,64}");
     private static final long MAX_CHUNK_SIZE = 64L * 1024 * 1024;
 
-    private final Path root;
+    private final Path fileRoot;
     private final Path partRoot;
+    private final java.util.function.Function<HttpExchange, Devices.Device> auth;
 
-    public UploadHandler(Path root) {
-        this.root = root;
-        this.partRoot = root.resolve(PART_DIR);
+    public UploadHandler(Path fileRoot,
+            java.util.function.Function<HttpExchange, Devices.Device> auth) {
+        this.fileRoot = fileRoot;
+        this.partRoot = fileRoot.resolve(PART_DIR);
+        this.auth = auth;
     }
 
     @Override
@@ -64,18 +67,33 @@ public final class UploadHandler implements HttpHandler {
                 sendJson(ex, 400, "{\"error\":\"bad key\"}");
                 return;
             }
+            Devices.Device device = auth.apply(ex);
+            if (device == null) {
+                sendJson(ex, 401, "{\"error\":\"not paired\"}");
+                return;
+            }
+            if (!device.write()) {
+                sendJson(ex, 403, "{\"error\":\"uploads are not allowed for this device\"}");
+                return;
+            }
+            // Staging is per device (flat "<deviceId>-<key>" dirs), so
+            // same-keyed transfers from different devices never collide
+            // and one device cannot touch another's staging.
+            Path staging = partRoot.resolve(device.id() + "-" + key);
+            Path deviceRoot = device.resolveRoot(fileRoot);
             switch (action) {
-                case "init" -> init(ex, key, q);
-                case "chunk" -> chunk(ex, key, q);
-                case "status" -> status(ex, key);
-                case "complete" -> complete(ex, key);
-                case "abort" -> abort(ex, key);
+                case "init" -> init(ex, key, staging, q);
+                case "chunk" -> chunk(ex, staging, q);
+                case "status" -> status(ex, key, staging);
+                case "complete" -> complete(ex, staging, deviceRoot);
+                case "abort" -> abort(ex, staging);
                 default -> ex.sendResponseHeaders(404, -1);
             }
         }
     }
 
-    private void init(HttpExchange ex, String key, Map<String, String> q) throws IOException {
+    private void init(HttpExchange ex, String key, Path staging, Map<String, String> q)
+            throws IOException {
         if (!"POST".equals(ex.getRequestMethod())) {
             ex.sendResponseHeaders(405, -1);
             return;
@@ -96,8 +114,7 @@ public final class UploadHandler implements HttpHandler {
             sendJson(ex, 400, "{\"error\":\"bad parameters\"}");
             return;
         }
-        Path dir = partRoot.resolve(key);
-        Path metaFile = dir.resolve("meta.properties");
+        Path metaFile = staging.resolve("meta.properties");
         Properties meta = new Properties();
         if (Files.exists(metaFile)) {
             try (InputStream in = Files.newInputStream(metaFile)) {
@@ -107,25 +124,25 @@ public final class UploadHandler implements HttpHandler {
             // wipe the stale staging area and start over.
             if (!String.valueOf(size).equals(meta.getProperty("size"))
                     || !String.valueOf(chunkSize).equals(meta.getProperty("chunkSize"))) {
-                deleteRecursively(dir);
+                deleteRecursively(staging);
             }
         }
-        Files.createDirectories(dir);
+        Files.createDirectories(staging);
         meta.setProperty("name", name);
         meta.setProperty("size", String.valueOf(size));
         meta.setProperty("chunkSize", String.valueOf(chunkSize));
         try (OutputStream out = Files.newOutputStream(metaFile)) {
             meta.store(out, null);
         }
-        sendJson(ex, 200, statusJson(key, meta));
+        sendJson(ex, 200, statusJson(key, staging, meta));
     }
 
-    private void chunk(HttpExchange ex, String key, Map<String, String> q) throws IOException {
+    private void chunk(HttpExchange ex, Path staging, Map<String, String> q) throws IOException {
         if (!"PUT".equals(ex.getRequestMethod())) {
             ex.sendResponseHeaders(405, -1);
             return;
         }
-        Properties meta = loadMeta(key);
+        Properties meta = loadMeta(staging);
         if (meta == null) {
             sendJson(ex, 404, "{\"error\":\"unknown transfer\"}");
             return;
@@ -150,8 +167,7 @@ public final class UploadHandler implements HttpHandler {
             sendJson(ex, 400, "{\"error\":\"bad sha256\"}");
             return;
         }
-        Path dir = partRoot.resolve(key);
-        Path tmp = dir.resolve(index + ".tmp");
+        Path tmp = staging.resolve(index + ".tmp");
         long written;
         java.security.MessageDigest digest;
         try {
@@ -182,26 +198,26 @@ public final class UploadHandler implements HttpHandler {
                 return;
             }
         }
-        Files.move(tmp, dir.resolve(index + ".chunk"),
+        Files.move(tmp, staging.resolve(index + ".chunk"),
                 StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         ex.sendResponseHeaders(204, -1);
     }
 
-    private void status(HttpExchange ex, String key) throws IOException {
-        Properties meta = loadMeta(key);
+    private void status(HttpExchange ex, String key, Path staging) throws IOException {
+        Properties meta = loadMeta(staging);
         if (meta == null) {
             sendJson(ex, 404, "{\"error\":\"unknown transfer\"}");
             return;
         }
-        sendJson(ex, 200, statusJson(key, meta));
+        sendJson(ex, 200, statusJson(key, staging, meta));
     }
 
-    private void complete(HttpExchange ex, String key) throws IOException {
+    private void complete(HttpExchange ex, Path staging, Path deviceRoot) throws IOException {
         if (!"POST".equals(ex.getRequestMethod())) {
             ex.sendResponseHeaders(405, -1);
             return;
         }
-        Properties meta = loadMeta(key);
+        Properties meta = loadMeta(staging);
         if (meta == null) {
             sendJson(ex, 404, "{\"error\":\"unknown transfer\"}");
             return;
@@ -209,18 +225,17 @@ public final class UploadHandler implements HttpHandler {
         long size = Long.parseLong(meta.getProperty("size"));
         long chunkSize = Long.parseLong(meta.getProperty("chunkSize"));
         int chunkCount = chunkCount(size, chunkSize);
-        Path dir = partRoot.resolve(key);
         for (int i = 0; i < chunkCount; i++) {
-            if (!Files.exists(dir.resolve(i + ".chunk"))) {
+            if (!Files.exists(staging.resolve(i + ".chunk"))) {
                 sendJson(ex, 409, "{\"error\":\"missing chunk\",\"index\":" + i + "}");
                 return;
             }
         }
-        Path target = uniqueTarget(meta.getProperty("name"));
-        Path assembling = dir.resolve("assembling");
+        Path target = uniqueTarget(deviceRoot, meta.getProperty("name"));
+        Path assembling = staging.resolve("assembling");
         try (OutputStream out = Files.newOutputStream(assembling)) {
             for (int i = 0; i < chunkCount; i++) {
-                try (InputStream in = Files.newInputStream(dir.resolve(i + ".chunk"))) {
+                try (InputStream in = Files.newInputStream(staging.resolve(i + ".chunk"))) {
                     in.transferTo(out);
                 }
             }
@@ -231,25 +246,25 @@ public final class UploadHandler implements HttpHandler {
             return;
         }
         Files.move(assembling, target, StandardCopyOption.ATOMIC_MOVE);
-        deleteRecursively(dir);
-        String rel = root.relativize(target).toString().replace('\\', '/');
+        deleteRecursively(staging);
+        String rel = deviceRoot.relativize(target).toString().replace('\\', '/');
         sendJson(ex, 200, "{\"name\":" + FilesHandler.quote(rel) + "}");
     }
 
     /** Cancels a transfer: drops its staging area entirely. Idempotent. */
-    private void abort(HttpExchange ex, String key) throws IOException {
+    private void abort(HttpExchange ex, Path staging) throws IOException {
         if (!"POST".equals(ex.getRequestMethod())) {
             ex.sendResponseHeaders(405, -1);
             return;
         }
-        deleteRecursively(partRoot.resolve(key));
+        deleteRecursively(staging);
         ex.sendResponseHeaders(204, -1);
     }
 
     /* ---------- helpers ---------- */
 
-    private Properties loadMeta(String key) throws IOException {
-        Path metaFile = partRoot.resolve(key).resolve("meta.properties");
+    private Properties loadMeta(Path staging) throws IOException {
+        Path metaFile = staging.resolve("meta.properties");
         if (!Files.exists(metaFile)) {
             return null;
         }
@@ -260,14 +275,13 @@ public final class UploadHandler implements HttpHandler {
         return meta;
     }
 
-    private String statusJson(String key, Properties meta) throws IOException {
+    private String statusJson(String key, Path staging, Properties meta) throws IOException {
         long size = Long.parseLong(meta.getProperty("size"));
         long chunkSize = Long.parseLong(meta.getProperty("chunkSize"));
         int chunkCount = chunkCount(size, chunkSize);
         List<Integer> have = new ArrayList<>();
-        Path dir = partRoot.resolve(key);
         for (int i = 0; i < chunkCount; i++) {
-            if (Files.exists(dir.resolve(i + ".chunk"))) {
+            if (Files.exists(staging.resolve(i + ".chunk"))) {
                 have.add(i);
             }
         }
@@ -331,7 +345,7 @@ public final class UploadHandler implements HttpHandler {
      * path, creating parent directories and appending " (n)" before the
      * extension on collision.
      */
-    private Path uniqueTarget(String relPath) throws IOException {
+    private Path uniqueTarget(Path root, String relPath) throws IOException {
         Path target = root.resolve(relPath).normalize();
         if (!target.startsWith(root)) {
             throw new IOException("unsafe path escaped sanitization: " + relPath);

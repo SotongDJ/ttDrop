@@ -31,8 +31,14 @@ dropped connections and page reloads.
    on machines without a display (`--port <n>` to override the port,
    default 4646; `--http` to disable TLS; `--fileops` and `--browse`
    to enable the optional toggles below).
-4. On another device, open the URL the window shows — click it on the
-   server to open it in your own browser, or scan the QR code it
+4. **Pair each device**: click **Pair device…** in the server window
+   and let the other device scan the QR code (or open the site and
+   type the one-time code). Until a device pairs, it sees nothing —
+   and each newly paired device only sees its own folder until you
+   allow more (headless mode prints pairing codes on the console;
+   `--open` disables pairing entirely).
+5. On the paired device, open the URL the window shows — click it on
+   the server to open it in your own browser, or scan the QR code it
    displays (`https://<your-ip>:4646/`). Accept the one-time
    certificate warning, or better: tap **Install the ttDrop
    certificate** in the page footer (also at `/ca.crt`) and trust it —
@@ -44,6 +50,11 @@ dropped connections and page reloads.
 
 ### Features
 
+- **Private by default — one session per device**: nothing is visible
+  without pairing via a one-time QR/text code. Each paired device
+  gets its own folder and per-device Read/Write/Browse switches in
+  the server window, so devices cannot see the host's files or each
+  other unless the host allows it.
 - **Chunked, parallel, resumable transfers** in both directions:
   interrupted uploads and downloads continue from the chunks already
   done — across page reloads (staged in the browser's private storage,
@@ -132,7 +143,12 @@ ttDrop 由一個小巧的 **Java 伺服器程式**（Windows/macOS/Linux）加�
    `java -jar ttdrop.jar --headless`（`--port <n>` 可更改連接埠，
    預設 4646；`--http` 停用 TLS；`--fileops` 與 `--browse`
    可啟用下方的選用功能）。
-4. 在另一台裝置上開啟視窗顯示的網址——在伺服器端點選網址即可用
+4. **為每台裝置配對**：在伺服器視窗點選 **Pair device…**，讓另一台
+   裝置掃描 QR Code（或開啟網站後輸入一次性配對碼）。裝置在配對前
+   看不到任何內容——而且每台新配對的裝置預設只能看到自己的資料夾，
+   除非你放寬權限（無圖形介面模式會在主控台印出配對碼；`--open`
+   可完全停用配對）。
+5. 在配對好的裝置上開啟視窗顯示的網址——在伺服器端點選網址即可用
    本機預設瀏覽器開啟，或掃描視窗顯示的 QR Code
    （`https://<你的-ip>:4646/`）。接受一次性的憑證警告，或更好的做法：
    點選頁尾的 **Install the ttDrop certificate**（亦可於 `/ca.crt`
@@ -143,6 +159,10 @@ ttDrop 由一個小巧的 **Java 伺服器程式**（Windows/macOS/Linux）加�
 
 ### 功能特色
 
+- **預設保密——每台裝置一個工作階段**：未配對前看不到任何內容，
+  配對透過一次性的 QR Code 或文字配對碼完成。每台已配對的裝置有
+  自己的資料夾，並可在伺服器視窗中個別設定讀取／寫入／瀏覽權限，
+  因此除非主機允許，裝置之間看不到彼此的檔案，也看不到主機的檔案。
 - **分塊、並行、可續傳的雙向傳輸**：中斷的上傳與下載會從已完成的
   分塊接續——頁面重新載入（暫存於瀏覽器私有儲存空間 OPFS）與
   伺服器重啟（暫存於隱藏的 `.ttdrop-part/` 資料夾）皆可續傳。

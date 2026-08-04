@@ -25,18 +25,28 @@ import java.util.Map;
  * area.
  */
 public final class FileOpsHandler implements HttpHandler {
-    private final Path root;
+    private final Path fileRoot;
     private final java.util.function.BooleanSupplier enabled;
+    private final java.util.function.Function<HttpExchange, Devices.Device> auth;
 
-    public FileOpsHandler(Path root, java.util.function.BooleanSupplier enabled) {
-        this.root = root;
+    public FileOpsHandler(Path fileRoot, java.util.function.BooleanSupplier enabled,
+            java.util.function.Function<HttpExchange, Devices.Device> auth) {
+        this.fileRoot = fileRoot;
         this.enabled = enabled;
+        this.auth = auth;
     }
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
         try (ex) {
-            if (!enabled.getAsBoolean()) {
+            Devices.Device device = auth.apply(ex);
+            if (device == null) {
+                UploadHandler.sendJson(ex, 401, "{\"error\":\"not paired\"}");
+                return;
+            }
+            // Rename/delete needs the global toggle AND this device's
+            // write grant.
+            if (!enabled.getAsBoolean() || !device.write()) {
                 UploadHandler.sendJson(ex, 403, "{\"error\":\"file management is disabled on this server\"}");
                 return;
             }
@@ -44,9 +54,10 @@ public final class FileOpsHandler implements HttpHandler {
                 ex.sendResponseHeaders(405, -1);
                 return;
             }
+            Path root = device.resolveRoot(fileRoot);
             String action = ex.getRequestURI().getPath().substring("/api/files/".length());
             Map<String, String> q = UploadHandler.query(ex);
-            Path target = resolveSafe(q.get("path"));
+            Path target = resolveSafe(root, q.get("path"));
             if (target == null) {
                 UploadHandler.sendJson(ex, 400, "{\"error\":\"bad path\"}");
                 return;
@@ -57,21 +68,21 @@ public final class FileOpsHandler implements HttpHandler {
             }
             switch (action) {
                 case "delete" -> delete(ex, target);
-                case "rename" -> rename(ex, target, q.get("to"));
+                case "rename" -> rename(ex, root, target, q.get("to"));
                 default -> ex.sendResponseHeaders(404, -1);
             }
         }
     }
 
-    /** Resolves a client path inside the root, or null when unsafe. */
-    private Path resolveSafe(String raw) {
+    /** Resolves a client path inside the device root, or null when unsafe. */
+    private Path resolveSafe(Path root, String raw) {
         String clean = UploadHandler.sanitizePath(raw);
         if (clean == null) {
             return null;
         }
         Path target = root.resolve(clean).normalize();
         if (!target.startsWith(root) || target.equals(root)
-                || target.startsWith(root.resolve(UploadHandler.PART_DIR))) {
+                || target.startsWith(fileRoot.resolve(UploadHandler.PART_DIR))) {
             return null;
         }
         return target;
@@ -90,7 +101,7 @@ public final class FileOpsHandler implements HttpHandler {
         ex.sendResponseHeaders(204, -1);
     }
 
-    private void rename(HttpExchange ex, Path target, String to) throws IOException {
+    private void rename(HttpExchange ex, Path root, Path target, String to) throws IOException {
         String newName = UploadHandler.sanitize(to);
         if (newName == null) {
             UploadHandler.sendJson(ex, 400, "{\"error\":\"bad name\"}");

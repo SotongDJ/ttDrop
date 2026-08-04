@@ -102,6 +102,40 @@ is a core design requirement, in both directions (upload and download):
   recursive zip of a directory (empty path = whole root; staging
   excluded; sanitized/traversal-checked). Read-only, so not gated by
   the file-management toggle (`ZipHandler`).
+- **Device pairing and per-device access** (implemented, the default):
+  every file endpoint (`/files/*`, `/api/upload/*`, `/api/files/*`,
+  `/api/zip`) requires a paired device session — unpaired requesters
+  get 401 and the PWA shows only its pairing screen. Only the app
+  shell, `/api/pair`, `/api/session`, `/ca.crt`, `/cert-help.html`,
+  and `/qr.png` are open. Model (`ttdrop.server.Devices`):
+  - Pairing: the host shows a one-time code (GUI "Pair device…"
+    dialog: QR of `scheme://host:port/?pair=CODE` + copyable text;
+    headless prints a code at startup and a fresh one whenever one is
+    consumed). The device calls `POST /api/pair?code=&name=` — on
+    success the server sets an HttpOnly session cookie (`ttdrop=`,
+    SameSite=Lax, Secure over HTTPS) whose SHA-256 is stored in
+    `~/.config/ttdrop/devices.properties`. Codes are in-memory,
+    single-use, 10-minute expiry.
+  - `GET /api/session` → `{pairingRequired, paired, name, path, read,
+    write, fileOps, browse}`; the PWA renders its whole UI from this.
+  - Per-device grants, host-edited live in the GUI Devices panel:
+    an allowed subtree (`path`, "" = whole root — every handler
+    resolves client paths against the device's subtree), `read`
+    (listings/downloads/zip), `write` (uploads; AND-ed with the
+    global file-management toggle for rename/delete), `browse`
+    (AND-ed with the global directory-browse toggle).
+  - Isolation default: a new device is scoped to its own folder named
+    after it, so devices cannot see the host's root or each other
+    until the host widens their path. Upload staging is per device
+    (`.ttdrop-part/<deviceId>-<key>/`), so keys never collide across
+    devices and no device can touch another's staging.
+  - Open mode (`--open` flag / GUI "Require device pairing" off,
+    persisted as config `pairing`): every request resolves to the
+    virtual OPEN device with full access — the pre-v0.16 behavior.
+    The browser test suite runs its shared server this way;
+    `pairing.test.mjs` covers the default posture.
+  - `TTDROP_CONFIG_DIR` overrides the config dir (tests use it to
+    avoid touching the real `devices.properties`).
 - **Download protocol** (implemented): `/files/<path>` supports `HEAD`
   and single-range `Range: bytes=a-b` GETs (206 + `Content-Range`,
   416 on bad ranges) with an ETag of `"size-mtime"`. A whitelist of
@@ -193,7 +227,9 @@ https://localhost:<port>/` must succeed with no `-k`.
   working directory; the working directory is exclusively the file area.
   Implemented as `ttdrop.Config` (`config.properties`; keys: `port`,
   `https` (default true), `root`, `autostart` (default false),
-  `fileOps` (default false), `dirBrowse` (default false)).
+  `fileOps` (default false), `dirBrowse` (default false), `pairing`
+  (default true)); paired devices live in `devices.properties` beside
+  it. `TTDROP_CONFIG_DIR` overrides the directory.
 - The GUI's URL label is a clickable link: clicking it opens the URL in
   the user's default browser (`java.awt.Desktop.browse`, falling back
   to `xdg-open`/`open`/`rundll32` where Desktop is unsupported).
@@ -404,12 +440,13 @@ control. Run it for any change under `src/main/java/jacross/`.
 
 Browser tests live in `tests/browser/` (plain Node scripts, exit 0/1):
 upload, upload-resume, download-resume, folder-upload, cancel,
-fileops, fileops-disabled, zip-download, inline-view, and dir-browse
-`.test.mjs` files; shared setup in `lib.mjs`, orchestrated by `run.sh`
-(starts a headless `--fileops` server on a temp dir and runs them all;
-`TTDROP_SCHEME=https` reruns the suite over TLS). Tests covering
-default-off toggles (fileops-disabled, dir-browse) spawn their own
-servers with the flags they need. They need Node.js, the `playwright`
+fileops, fileops-disabled, zip-download, inline-view, dir-browse, and
+pairing `.test.mjs` files; shared setup in `lib.mjs`, orchestrated by
+`run.sh` (starts a headless `--fileops --open` server on a temp dir
+and runs them all; `TTDROP_SCHEME=https` reruns the suite over TLS).
+Tests covering default postures (fileops-disabled, dir-browse,
+pairing) spawn their own servers with the flags they need — pairing
+uses `TTDROP_CONFIG_DIR` so test devices never touch the real config. They need Node.js, the `playwright`
 package, and Chromium — deliberately not in the pixi env to keep it
 lean. Run every one of them before finishing a batch that touches
 transfer code, and add a test when adding a transfer behavior.
@@ -457,7 +494,8 @@ accumulate bullets under `## Unreleased`.
 
 To cut a release: rename `## Unreleased` to the new version section
 (start a fresh empty `## Unreleased` above it), bump `version` in
-`pixi.toml`, merge to `main`, then trigger
+`pixi.toml` **and `Main.VERSION`** (shown in the window title so users
+can tell which jar they are running), merge to `main`, then trigger
 `.github/workflows/release.yml` (workflow_dispatch). The workflow
 parses CHANGELOG and, per version section, updates the existing GitHub
 release's title/notes or creates a missing release tagged at the
@@ -495,6 +533,8 @@ ttDrop/
     │   ├── gui/ServerWindow.java # Swing control window (IP picker, QR)
     │   └── server/
     │       ├── TtDropServer.java  # HttpServer wiring, LAN addresses
+    │       ├── Devices.java       # pairing codes, sessions, grants
+    │       ├── PairHandler.java   # /api/pair, /api/session
     │       ├── WebRootHandler.java# embedded PWA assets from the jar
     │       ├── FilesHandler.java  # /files/: listings, Range downloads
     │       ├── UploadHandler.java # /api/upload/: chunked resumable
