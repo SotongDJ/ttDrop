@@ -45,10 +45,45 @@ is a core design requirement, in both directions (upload and download):
   and don't exhaust RAM. Prefer `createSyncAccessHandle()` inside Web
   Workers for chunk I/O (the widely supported OPFS write path, including
   Safari); clean up OPFS temporaries once a transfer completes.
-- The concrete transfer protocol (endpoints, chunk metadata, integrity
-  checks, session/transfer identifiers) is not implemented yet. Whoever
-  implements it must document it in this file and keep the PWA and Java
-  server implementations in lockstep.
+- **Upload protocol** (implemented; keep PWA and server in lockstep):
+  - `POST /api/upload/init?key=&name=&size=&chunkSize=` → creates or
+    finds the staging area; returns `{"key","chunkCount","have":[...]}`
+    where `have` lists chunk indexes already stored (resume).
+  - `PUT /api/upload/chunk?key=&index=n` (raw body) → stores one chunk;
+    written to a temp file then atomically renamed, so parallel chunk
+    uploads and crashes are safe. Exact-size check per chunk.
+  - `GET /api/upload/status?key=` → same shape as init's response.
+  - `POST /api/upload/complete?key=` → verifies all chunks, assembles
+    into the file root under a collision-safe name (`name (n).ext`),
+    deletes staging; returns `{"name":finalName}`. 409 + missing index
+    if incomplete.
+  - The `key` is a client-derived stable identifier (lowercase hex,
+    8–64 chars) hashed from `name|size|lastModified` — it makes resume
+    match across page reloads. It is an identifier, not a security
+    digest (crypto.subtle is unavailable in insecure LAN contexts).
+  - Server staging lives in `<fileRoot>/.ttdrop-part/<key>/` (hidden
+    from `/files/` listings) so partial transfers survive server
+    restarts and final assembly is an atomic same-filesystem move.
+  - PWA side: `uploader.js` Web Worker stages the file into OPFS
+    (`ttdrop-outgoing/<key>.bin` + `.json`, sync access handles), then
+    uploads missing chunks with a small parallel pool (default 3 × 4 MiB)
+    and retry/backoff; `app.js` `resumePending()` rescans OPFS on load
+    and resumes unfinished transfers. Where OPFS is unavailable the
+    worker falls back to slicing the original `File` (no reload-resume).
+  - File names are sanitized server-side (separators/reserved characters
+    stripped, no traversal, 255-char cap).
+- **Download protocol** (implemented): `/files/<path>` supports `HEAD`
+  and single-range `Range: bytes=a-b` GETs (206 + `Content-Range`,
+  416 on bad ranges) with an ETag of `"size-mtime"`. The PWA's
+  `downloader.js` worker fetches chunks in parallel with Range requests,
+  writes them at their offsets into an OPFS staging file
+  (`ttdrop-incoming/<key>.bin` + `.json` tracking completed indexes and
+  the ETag), and resumes across reloads; an ETag mismatch on resume
+  restarts the transfer. When complete, the main thread hands the staged
+  file to the browser as a blob-URL save. **Staging must not be deleted
+  at delivery time** — the save streams lazily from the OPFS file — so
+  the meta is marked `delivered` and cleanup runs on the next page load.
+  Without OPFS, file links fall back to plain navigation downloads.
 
 ### Server runtime layout
 
@@ -68,6 +103,8 @@ is a core design requirement, in both directions (upload and download):
   directory** (i.e. `~/.config/ttdrop/`, resolved via `user.home` — the
   same layout on Windows, macOS, and Linux). Config never lives in the
   working directory; the working directory is exclusively the file area.
+  Implemented as `ttdrop.Config` (`config.properties`; currently stores
+  the last used port, saved when the GUI starts the server).
 - Keep the served file area and the transfer temporaries distinct from
   config, and make sure serving `/files/` never escapes the working
   directory (path traversal — see the security ground rule).
@@ -104,15 +141,20 @@ and ask the maintainer instead of proceeding.
 
 ## Current state of the repository
 
-The codebase is at the very beginning: as of now the repo contains only
-`README.md` (title only), `LICENSE` (GPL-3.0), `.gitignore` (Java
-template), and this guide. The server and PWA described above are the
-intended design, not yet implemented.
+Implemented and verified end to end (Playwright/Chromium against the
+running jar): the Java server (GUI + headless, embedded webroot,
+`/files/` with Range support, chunked upload API, config persistence)
+and the PWA (installable shell, chunked parallel resumable uploads and
+downloads staged in OPFS with reload-resume).
 
-Therefore: do not assume the existence of any module, build file, or
-directory that is not present on disk — verify with the actual file tree
-first. When the source tree, build system, or test setup is created,
-update the sections below in the same commit.
+Not yet implemented / open decisions: HTTPS for secure contexts on LAN
+devices (see Known gaps), folder uploads, transfer cancellation UI,
+deleting/renaming server files from the PWA, and a wired-in automated
+test suite (the Playwright tests currently live outside the repo).
+
+Do not assume the existence of any module, build file, or directory that
+is not present on disk — verify with the actual file tree first, and
+keep the sections below current in the same commit as any change.
 
 ## Ground rules
 
@@ -139,26 +181,58 @@ update the sections below in the same commit.
   when asked to.
 - Commit messages in the imperative mood ("Add drop handler", not "Added
   drop handler"), short subject line, optional body explaining *why*.
-- **Every batch of modifications must be completed and published — never
-  leave finished work sitting uncommitted or unpushed:**
-  - **Code changes** (alone or with docs): finish the batch with
-    **commit + tag + push** — push the branch and the tag
-    (`git push -u origin <branch-name>` and `git push origin <tag>`).
-  - **Docs-only changes** (no code touched): finish the batch with
-    **commit + push** — no tag.
+- **Every batch of modifications ends with a commit — nothing more.**
+  Never leave finished work uncommitted, but do not push automatically:
+  **push and pull requests happen on demand only**, when the maintainer
+  asks for them.
+  - Exception: in an ephemeral environment (e.g. a Claude Code cloud
+    session, where the container and its commits are discarded after the
+    session), push the working branch before the session ends so the
+    work is not lost. This exception covers branch pushes only — never
+    tags, and never opening a PR unasked.
+- **Tags are not created during development batches.** They are
+  generated on the maintainer's local device: after cloning or pulling
+  the repo there, create annotated tags from the commit history (batch
+  and milestone commits) and push them to origin from that device.
+- **Tag convention:** annotated semver tags `vMAJOR.MINOR.PATCH`
+  (e.g. `v0.1.0`). Bump PATCH for an ordinary batch, MINOR for a
+  feature milestone, MAJOR for breaking/protocol changes. Keep the
+  `version` in `pixi.toml` in sync with the latest tag.
 
-## Build, test, and lint
+## Environment and build (pixi)
 
-Not configured yet. When introduced, document here:
+The toolchain is managed with **[pixi](https://pixi.sh)** — do not install
+JDKs or build tools any other way, and do not introduce Gradle/Maven
+without maintainer approval.
 
-- exact commands to build, test, and lint the Java server (and required
-  JDK version);
-- how the PWA assets are laid out and served (they should need no build
-  step, per the vanilla-only constraint);
-- how to run the server locally and reach the PWA from another device.
+Install pixi if missing:
 
-Until then, verify changes by whatever means the change allows, and state
-plainly in your summary what was and was not verified.
+- Linux/macOS: `curl -fsSL https://pixi.sh/install.sh | sh`
+- Windows: `powershell -ExecutionPolicy Bypass -c "irm -useb https://pixi.sh/install.ps1 | iex"`
+
+Rules:
+
+- **`pixi.toml` and `pixi.lock` are git-tracked — always.** Commit both
+  whenever dependencies or tasks change. Never add them to `.gitignore`.
+- The `.pixi/` environment directory is ignored and must stay ignored.
+- The lockfile is solved for `linux-64`, `win-64`, `osx-64`, `osx-arm64`;
+  keep all four platforms when changing dependencies.
+- The JDK comes from conda-forge (`openjdk >=25`, i.e. Java 25).
+
+Tasks (run from the repo root):
+
+- `pixi run build` — compiles `src/main/java` (entry `ttdrop.Main`) into
+  `build/classes` and packages `dist/ttdrop.jar` with the embedded
+  webroot from `src/main/resources`.
+- `pixi run run` — builds then runs the jar.
+- `pixi run clean` — removes `build/` and `dist/`.
+
+The PWA has **no build step** (vanilla-only constraint): its assets live
+in `src/main/resources/webroot/` and are packaged into the jar as-is.
+
+There is no test suite yet; when one is added, wire it as a pixi task and
+document it here. Until then, verify changes by building and running, and
+state plainly in your summary what was and was not verified.
 
 ## Coding conventions
 
@@ -171,18 +245,48 @@ free browser JS/CSS.
 
 ```
 ttDrop/
-├── AGENT.md      # this guide
-├── LICENSE       # GPL-3.0
-├── README.md     # project title (needs a real description)
-└── .gitignore    # Java template
+├── AGENT.md              # this guide
+├── LICENSE               # GPL-3.0
+├── README.md             # user-facing description and quick start
+├── .gitignore            # Java template + pixi env + build outputs
+├── .gitattributes        # pixi.lock merge/linguist settings
+├── pixi.toml             # pixi workspace: deps, platforms, tasks (tracked)
+├── pixi.lock             # pixi lockfile, all 4 platforms (tracked)
+└── src/main/
+    ├── java/ttdrop/
+    │   ├── Main.java             # entry point; GUI or --headless
+    │   ├── Config.java           # ~/.config/ttdrop/config.properties
+    │   ├── gui/ServerWindow.java # Swing control window
+    │   └── server/
+    │       ├── TtDropServer.java  # HttpServer wiring, LAN addresses
+    │       ├── WebRootHandler.java# embedded PWA assets from the jar
+    │       ├── FilesHandler.java  # /files/: listings, Range downloads
+    │       └── UploadHandler.java # /api/upload/: chunked resumable
+    └── resources/webroot/
+        ├── index.html            # app shell
+        ├── style.css             # vanilla CSS, light/dark
+        ├── app.js                # UI, browser, transfer orchestration
+        ├── uploader.js           # upload worker (OPFS staging)
+        ├── downloader.js         # download worker (OPFS staging)
+        ├── sw.js                 # service worker (shell cache only)
+        ├── manifest.webmanifest  # PWA manifest
+        └── icon.svg              # app icon
 ```
 
+Build outputs go to `build/` and `dist/` (both git-ignored).
 Update this map when the source tree grows.
 
 ## Known gaps / good first tasks
 
-- README.md needs a real description (the "What ttDrop is" section above
-  is a starting point), usage instructions, and a license notice.
-- No build system or source layout exists yet — confirm the intended
-  Java tooling (plain `javac`, Gradle, Maven, target JDK) with the
-  maintainer before scaffolding.
+- Serving over plain HTTP means non-localhost devices (e.g. a phone on
+  the LAN) do not get a secure context, which blocks service workers and
+  OPFS in the browser — transfers work but without reload-resume or
+  install. Decide how to handle this (self-signed HTTPS, graceful
+  degradation, or both) and document the decision here.
+- Wire the Playwright browser tests (upload, upload-resume,
+  download-resume) into the repo as a pixi task so every batch can run
+  them; they currently exist only as session scratch files.
+- Folder uploads (directory picker / relative paths), transfer
+  cancellation, and delete/rename of server files from the PWA.
+- GUI conveniences: choose file root from the window, QR code for the
+  LAN URL, autostart option.
