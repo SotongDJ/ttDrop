@@ -19,7 +19,7 @@ import ttdrop.server.TtDropServer;
  */
 public final class Main {
     /** Shown in the window title and startup line; bump with pixi.toml. */
-    public static final String VERSION = "0.19.0";
+    public static final String VERSION = "0.20.0";
     public static final int DEFAULT_PORT = 4646;
 
     private Main() {
@@ -33,6 +33,9 @@ public final class Main {
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
+        // Must run before ANY AWT class loads (sun.java2d.uiScale is
+        // read at toolkit init) — keep this the first statement.
+        jacross.UiScale.autoApply();
         Config config = Config.load();
         int port = config.getPort(DEFAULT_PORT);
         boolean https = config.getHttps(true);

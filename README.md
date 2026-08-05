@@ -99,6 +99,11 @@ dropped connections and page reloads.
 - On plain HTTP, browsers only grant OPFS/service-worker features to
   `localhost`; other devices still transfer files, but without
   reload-resume or app install. See `AGENT.md` for details.
+- On Linux, ttDrop follows GNOME's display and text scaling
+  automatically. If the window still looks too small or too large,
+  set the scale yourself:
+  `java -Dsun.java2d.uiScale=1.5 -jar ttdrop_v0r20n0.jar`
+  (any factor works — 1.25, 1.5, 2).
 
 ### Development
 
@@ -207,6 +212,10 @@ ttDrop 由一個小巧的 **Java 伺服器程式**（Windows/macOS/Linux）加�
 - 在純 HTTP 之下，瀏覽器只對 `localhost` 開放 OPFS 與 service
   worker 功能；其他裝置仍可傳輸檔案，但無法在重新載入後續傳、
   也無法安裝為應用程式。詳見 `AGENT.md`。
+- 在 Linux 上，ttDrop 會自動跟隨 GNOME 的顯示與文字縮放設定。
+  若視窗仍太小或太大，可自行指定縮放比例：
+  `java -Dsun.java2d.uiScale=1.5 -jar ttdrop_v0r20n0.jar`
+  （任何倍率皆可——1.25、1.5、2）。
 
 ### 開發
 

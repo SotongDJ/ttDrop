@@ -27,12 +27,19 @@ public final class LafTest {
 
     public static void main(String[] args) throws Exception {
         Font font;
-        try (var in = LafTest.class.getResourceAsStream("/jacross/NotoSansTC-Regular.otf")) {
+        try (var in = LafTest.class.getResourceAsStream("/jacross/NotoSansTC-Regular.ttf")) {
             font = Font.createFont(Font.TRUETYPE_FONT, in).deriveFont(13f);
         }
         check("embedded font is Noto Sans TC", font.getFamily().contains("Noto Sans TC"));
         check("font covers Latin", font.canDisplay('A'));
         check("font covers Traditional Chinese", font.canDisplay('繁') && font.canDisplay('檔'));
+        // A CFF-flavoured font can report the right family yet rasterize
+        // as a fallback face — only pixels prove the glyphs are ours.
+        Font dialog = new Font(Font.DIALOG, Font.PLAIN, 40);
+        check("Latin glyphs render from the embedded font (not a fallback)",
+                textDiffers("AaGgRr", font.deriveFont(40f), dialog));
+        check("CJK glyphs render from the embedded font (not a fallback)",
+                textDiffers("檔案傳輸", font.deriveFont(40f), dialog));
 
         for (DesignLanguage language : DesignLanguage.values()) {
             for (boolean dark : new boolean[] {false, true}) {
@@ -84,6 +91,22 @@ public final class LafTest {
 
         System.out.println(fail == 0 ? "TEST PASS" : "TEST FAIL");
         System.exit(fail == 0 ? 0 : 1);
+    }
+
+    static boolean textDiffers(String s, Font a, Font b) {
+        return !java.util.Arrays.equals(renderText(s, a), renderText(s, b));
+    }
+
+    static int[] renderText(String s, Font f) {
+        BufferedImage img = new BufferedImage(300, 60, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        g.setColor(java.awt.Color.WHITE);
+        g.fillRect(0, 0, 300, 60);
+        g.setColor(java.awt.Color.BLACK);
+        g.setFont(f);
+        g.drawString(s, 5, 45);
+        g.dispose();
+        return img.getRGB(0, 0, 300, 60, null, 0, 300);
     }
 
     static BufferedImage render(JComponent c, int w, int h) {

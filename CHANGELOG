@@ -8,6 +8,27 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.20.0 — font that renders everywhere, Linux HiDPI auto-scale (2026-08-05)
+
+- Fixed for real: the embedded font loaded (v0.19 proved that on the
+  console) but still displayed as a fallback face on Windows 11 and
+  Ubuntu — the shipped OTF uses CFF outlines, which some JDK builds
+  fail to rasterize even though the family name reads correctly. The
+  jar now embeds a TrueType-outline (glyf) static Regular instance of
+  Noto Sans TC (instanced from Google Fonts' variable font, SIL OFL),
+  which rasterizes on every JDK. The jar SHRANK to ~4.4 MB (glyf
+  compresses better). The stale extracted OTF in the config dir is
+  cleaned up automatically.
+- The L&F test now proves rendering with pixels, not names: text
+  drawn with the embedded font must differ from the same text drawn
+  with the system Dialog font, for Latin and CJK alike.
+- Linux HiDPI: on GNOME desktops with fractional scaling or Large
+  Text, Java only honours integer GDK_SCALE and the window rendered
+  tiny. ttDrop now reads the GNOME scaling settings at startup and
+  sets `sun.java2d.uiScale` automatically (before AWT loads), never
+  overriding an explicit `-Dsun.java2d.uiScale=...` or GDK_SCALE.
+  Manual override examples are documented in the README.
+
 ## v0.19.0 — reliable embedded font on every machine (2026-08-04)
 
 - Fixed: on some machines (observed on Windows) the GUI silently fell

@@ -12,7 +12,13 @@ import java.nio.file.StandardCopyOption;
  * with full Traditional Chinese and competent Latin coverage, so the
  * GUI renders identically on every OS with no fallback boxes.
  *
- * <p>Primary path: the OTF is extracted once to the config directory
+ * <p>The font ships as a TrueType-outline (glyf) static instance —
+ * CFF-outline OTFs load with the right family name but rasterize as a
+ * fallback face on some JDK builds (observed on Windows and Ubuntu),
+ * which is exactly the failure a family-name check cannot catch; the
+ * L&F test therefore compares rendered pixels against the Dialog font.
+ *
+ * <p>Primary path: the font is extracted once to the config directory
  * and loaded with {@code Font.createFont(File)} — the InputStream
  * variant spools through {@code java.io.tmpdir}, which is exactly the
  * kind of machine-specific dependency that fails silently. Every
@@ -21,8 +27,8 @@ import java.nio.file.StandardCopyOption;
  * bold synthetically from the single Regular weight.
  */
 final class Fonts {
-    private static final String RESOURCE = "/jacross/NotoSansTC-Regular.otf";
-    private static final String FILE_NAME = "NotoSansTC-Regular.otf";
+    private static final String RESOURCE = "/jacross/NotoSansTC-Regular.ttf";
+    private static final String FILE_NAME = "NotoSansTC-Regular.ttf";
 
     private Fonts() {
     }
@@ -48,6 +54,8 @@ final class Fonts {
         try {
             Path dir = ttdrop.Config.dir();
             Files.createDirectories(dir);
+            // v0.19 extracted a CFF-flavoured OTF here; remove it.
+            Files.deleteIfExists(dir.resolve("NotoSansTC-Regular.otf"));
             Path file = dir.resolve(FILE_NAME);
             long resourceSize;
             try (InputStream in = Fonts.class.getResourceAsStream(RESOURCE)) {
