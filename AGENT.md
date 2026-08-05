@@ -260,8 +260,15 @@ https://localhost:<port>/` must succeed with no `-k`.
   accent via desktop property — each optional, 2s-bounded, quiet
   fallback to light + brand seed `0x2563EB`). Policy: FLUENT on
   Windows, MATERIAL elsewhere. The UI font is the embedded
-  **Noto Sans TC** Regular (subset OTF, ~5.7 MB — the dominant jar
-  weight; bold is derived synthetically). `Main` calls
+  **Noto Sans TC** Regular — a **TrueType-outline (glyf) static
+  instance** (~7.1 MB raw, the dominant jar weight; bold is derived
+  synthetically). Never swap in a CFF-outline OTF: it loads with the
+  right family name but rasterizes as a fallback face on some JDK
+  builds — the L&F test's pixel-comparison checks exist to catch
+  exactly that. `jacross.UiScale.autoApply()` (first statement of
+  `main`, before any AWT class loads) sets `sun.java2d.uiScale` from
+  GNOME's scaling settings on Linux, never overriding an explicit
+  property or GDK_SCALE. `Main` calls
   `JaCross.detect()` off the EDT then `JaCross.apply()` on it, GUI
   path only — headless mode never touches Swing or the font. Painters
   read tokens via `UIManager.get("jacross.tokens")` at paint time;
@@ -577,7 +584,10 @@ ttDrop/
     │       └── TlsSupport.java    # CA + server cert generation
     └── resources/
         ├── jacross/
-        │   ├── NotoSansTC-Regular.otf  # embedded UI font (SIL OFL)
+        │   ├── NotoSansTC-Regular.ttf  # embedded UI font (SIL OFL);
+        │   │                           #   MUST stay glyf/TrueType —
+        │   │                           #   CFF OTFs render as a fallback
+        │   │                           #   face on some JDK builds
         │   └── OFL.txt                 # its licence — ships with the font
         ├── ttdrop/
         │   └── icon.png                # window/taskbar icon (dark bg)
