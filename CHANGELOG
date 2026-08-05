@@ -8,6 +8,23 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.21.0 — shareable links panel (2026-08-05)
+
+- The single URL under the address picker is now a links panel with up
+  to three rows, each clickable (opens the default browser), copyable
+  (Copy button), and showable as a QR code (QR toggle switches the
+  shared QR panel to that link):
+  - **App** — `scheme://host:port/`, always shown while running.
+  - **Pair** — `scheme://host:port/?pair=CODE`, shown only while
+    "Require device pairing" is on. The embedded one-time code is
+    minted at start and re-minted automatically whenever a device
+    consumes it (or pairing is toggled back on), so the link and its
+    QR are always valid. This replaces the "Pair device…" dialog.
+  - **Files** — `scheme://host:port/files/`, shown only while
+    "Allow directory browsing" is enabled; the row appears and
+    disappears live with the toggle.
+- Links follow the selected address and the active scheme, as before.
+
 ## v0.20.0 — font that renders everywhere, Linux HiDPI auto-scale (2026-08-05)
 
 - Fixed for real: the embedded font loaded (v0.19 proved that on the

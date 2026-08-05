@@ -108,10 +108,11 @@ is a core design requirement, in both directions (upload and download):
   get 401 and the PWA shows only its pairing screen. Only the app
   shell, `/api/pair`, `/api/session`, `/ca.crt`, `/cert-help.html`,
   and `/qr.png` are open. Model (`ttdrop.server.Devices`):
-  - Pairing: the host shows a one-time code (GUI "Pair device…"
-    dialog: QR of `scheme://host:port/?pair=CODE` + copyable text;
-    headless prints a code at startup and a fresh one whenever one is
-    consumed). Scanning the QR prefills the code — the user must then
+  - Pairing: the host shows a one-time code (GUI: the "Pair" row of
+    the links panel — QR of `scheme://host:port/?pair=CODE`, copy
+    button, clickable; the code is minted at start and re-minted when
+    consumed. Headless prints a code at startup and a fresh one
+    whenever one is consumed). Scanning the QR prefills the code — the user must then
     assign the device a **name: 1–32 of `[a-z0-9_]`, unique across
     the device list** (`Devices.NAME`). `POST /api/pair?code=&name=`
     → 400 bad name / 409 taken / 403 bad code; the name is validated
@@ -247,9 +248,12 @@ https://localhost:<port>/` must succeed with no `-k`.
   `fileOps` (default false), `dirBrowse` (default false), `pairing`
   (default true)); paired devices live in `devices.properties` beside
   it. `TTDROP_CONFIG_DIR` overrides the directory.
-- The GUI's URL label is a clickable link: clicking it opens the URL in
-  the user's default browser (`java.awt.Desktop.browse`, falling back
-  to `xdg-open`/`open`/`rundll32` where Desktop is unsupported).
+- The GUI shows a **links panel** while running: App (`/`), Pair
+  (`/?pair=CODE`, only while pairing is required), and Files
+  (`/files/`, only while directory browsing is enabled). Every row is
+  clickable (opens the default browser via `java.awt.Desktop.browse`,
+  falling back to `xdg-open`/`open`/`rundll32`), copyable, and can be
+  shown in the shared QR panel via its QR toggle.
 - **GUI theming — the `jacross` package** (Tier 0 subset of the
   JaCross design system): a token layer (`ColorRole`/`Tokens`/`Themes`)
   with OKLab/CIE-L* tonal palettes (`Ok`, `TonalPalette`),
