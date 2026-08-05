@@ -40,14 +40,17 @@ public final class ServerWindow extends JFrame {
     private final javax.swing.JCheckBox fileOpsBox = new javax.swing.JCheckBox("Allow browser file management");
     private final javax.swing.JCheckBox dirBrowseBox = new javax.swing.JCheckBox("Allow directory browsing");
     private final javax.swing.JCheckBox pairingBox = new javax.swing.JCheckBox("Require device pairing");
-    private final JButton pairButton = new JButton("Pair device…");
+    private final JPanel linksPanel = new JPanel();
+    /** Live pairing code shown in the Pair link; re-minted on use. */
+    private String pairCode;
+    /** Which link the QR panel shows: "app", "pair", or "files". */
+    private String qrTarget = "app";
     private final JPanel devicesPanel = new JPanel();
     private final JButton toggleButton = new JButton("Start");
     private final JButton rootButton = new JButton("Change…");
     private final JLabel rootLabel = new JLabel();
     private final JLabel statusLabel = new JLabel("Stopped");
     private final JComboBox<String> addressBox = new JComboBox<>();
-    private final JLabel urlLabel = new JLabel(" ");
     private final QrPanel qrPanel = new QrPanel();
 
     public ServerWindow(TtDropServer server, int initialPort, boolean initialHttps, Config config) {
@@ -69,8 +72,6 @@ public final class ServerWindow extends JFrame {
         this.pairingBox.setSelected(server.isPairingRequired());
         this.pairingBox.setToolTipText(
                 "Devices must pair with a one-time code before seeing anything (on by default)");
-        this.pairButton.setToolTipText("Show a one-time pairing code as QR and text");
-        this.pairButton.setEnabled(false);
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         applyAppIcon();
@@ -104,7 +105,6 @@ public final class ServerWindow extends JFrame {
         main.add(permissions);
         JPanel pairingRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         pairingRow.add(pairingBox);
-        pairingRow.add(pairButton);
         main.add(pairingRow);
         devicesPanel.setLayout(new BoxLayout(devicesPanel, BoxLayout.Y_AXIS));
         devicesPanel.setBorder(BorderFactory.createTitledBorder("Devices"));
@@ -116,16 +116,18 @@ public final class ServerWindow extends JFrame {
         addressRow.add(addressBox);
         main.add(addressRow);
         main.add(Box.createVerticalStrut(4));
-        main.add(urlLabel);
+        linksPanel.setLayout(new BoxLayout(linksPanel, BoxLayout.Y_AXIS));
+        main.add(linksPanel);
         main.add(Box.createVerticalStrut(8));
         main.add(qrPanel);
 
         addressBox.setVisible(false);
+        linksPanel.setVisible(false);
         qrPanel.setVisible(false);
         toggleButton.addActionListener(e -> toggle());
         rootButton.addActionListener(e -> chooseRoot());
-        addressBox.addActionListener(e -> updateUrl());
-        // Both take effect immediately, even while the server is running.
+        addressBox.addActionListener(e -> rebuildLinks());
+        // All three take effect immediately, even while running.
         fileOpsBox.addActionListener(e -> {
             server.setFileOpsEnabled(fileOpsBox.isSelected());
             config.setFileOps(fileOpsBox.isSelected());
@@ -135,25 +137,19 @@ public final class ServerWindow extends JFrame {
             server.setDirBrowseEnabled(dirBrowseBox.isSelected());
             config.setDirBrowse(dirBrowseBox.isSelected());
             config.save();
+            rebuildLinks();
         });
         pairingBox.addActionListener(e -> {
             server.setPairingRequired(pairingBox.isSelected());
             config.setPairing(pairingBox.isSelected());
             config.save();
-            pairButton.setEnabled(server.isRunning() && pairingBox.isSelected());
-        });
-        pairButton.addActionListener(e -> showPairDialog());
-        server.devices().setOnChange(() ->
-                javax.swing.SwingUtilities.invokeLater(this::rebuildDevices));
-        rebuildDevices();
-        urlLabel.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
-        urlLabel.setToolTipText("Open in your default browser");
-        urlLabel.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
-                openInBrowser();
+            if (pairingBox.isSelected() && server.isRunning()) {
+                pairCode = server.devices().newPairingCode();
             }
+            rebuildLinks();
         });
+        server.devices().setOnChange(this::onDevicesChanged);
+        rebuildDevices();
 
         add(main, BorderLayout.CENTER);
         pack();
@@ -183,42 +179,16 @@ public final class ServerWindow extends JFrame {
         }
     }
 
-    /** One-time pairing code as QR + copyable text (server must run). */
-    private void showPairDialog() {
-        Object selected = addressBox.getSelectedItem();
-        String host = selected == null ? "localhost" : selected.toString();
-        String code = server.devices().newPairingCode();
-        String url = server.scheme() + "://" + host + ":" + server.getPort() + "/?pair="
-                + java.net.URLEncoder.encode(code, java.nio.charset.StandardCharsets.UTF_8);
-
-        javax.swing.JDialog dialog = new javax.swing.JDialog(this, "Pair a device", false);
-        JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
-        panel.add(new JLabel("Scan with the device's camera, or open the site and enter the code:"));
-        panel.add(Box.createVerticalStrut(8));
-        QrPanel qr = new QrPanel();
-        qr.show(url);
-        panel.add(qr);
-        panel.add(Box.createVerticalStrut(8));
-        JTextField codeField = new JTextField(code, 10);
-        codeField.setEditable(false);
-        JButton copyButton = new JButton("Copy");
-        copyButton.addActionListener(e -> java.awt.Toolkit.getDefaultToolkit()
-                .getSystemClipboard().setContents(
-                        new java.awt.datatransfer.StringSelection(code), null));
-        JPanel codeRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        codeRow.add(new JLabel("Code:"));
-        codeRow.add(codeField);
-        codeRow.add(copyButton);
-        panel.add(codeRow);
-        JLabel hint = new JLabel("Valid 10 minutes; pairs one device.");
-        hint.setFont(hint.getFont().deriveFont(Font.PLAIN));
-        panel.add(hint);
-        dialog.add(panel);
-        dialog.pack();
-        dialog.setLocationRelativeTo(this);
-        dialog.setVisible(true);
+    /** Registry change: a pairing consumed the shown code — mint a
+     *  fresh one and refresh both the devices panel and the links. */
+    private void onDevicesChanged() {
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            if (server.isRunning() && pairingBox.isSelected()) {
+                pairCode = server.devices().newPairingCode();
+            }
+            rebuildDevices();
+            rebuildLinks();
+        });
     }
 
     /** Rebuilds the per-device permission rows from the registry. */
@@ -404,8 +374,7 @@ public final class ServerWindow extends JFrame {
         server.setFileOpsEnabled(fileOpsBox.isSelected());
         server.setDirBrowseEnabled(dirBrowseBox.isSelected());
         server.setPairingRequired(pairingBox.isSelected());
-        server.devices().setOnChange(() ->
-                javax.swing.SwingUtilities.invokeLater(this::rebuildDevices));
+        server.devices().setOnChange(this::onDevicesChanged);
         rebuildDevices();
         config.setRoot(newRoot);
         config.save();
@@ -421,10 +390,10 @@ public final class ServerWindow extends JFrame {
             portField.setEnabled(true);
             httpsBox.setEnabled(true);
             rootButton.setEnabled(true);
-            pairButton.setEnabled(false);
             addressBox.setVisible(false);
+            linksPanel.setVisible(false);
             qrPanel.setVisible(false);
-            urlLabel.setText(" ");
+            pairCode = null;
             pack();
             return;
         }
@@ -475,7 +444,9 @@ public final class ServerWindow extends JFrame {
         portField.setEnabled(false);
         httpsBox.setEnabled(false);
         rootButton.setEnabled(false);
-        pairButton.setEnabled(pairingBox.isSelected());
+        if (pairingBox.isSelected()) {
+            pairCode = server.devices().newPairingCode();
+        }
 
         List<String> addresses = new ArrayList<>(TtDropServer.lanAddresses());
         addresses.add("localhost");
@@ -485,29 +456,86 @@ public final class ServerWindow extends JFrame {
         }
         addressBox.setSelectedIndex(0);
         addressBox.setVisible(true);
+        linksPanel.setVisible(true);
         qrPanel.setVisible(true);
-        updateUrl();
+        rebuildLinks();
     }
 
-    private void updateUrl() {
+    /**
+     * The links panel: one row per shareable URL — the app, the
+     * pairing link (only while pairing is required; its one-time code
+     * is re-minted whenever a device uses it), and /files/ (only
+     * while directory browsing is enabled). Every row is clickable
+     * (default browser), copyable, and selectable into the QR panel.
+     */
+    private void rebuildLinks() {
         Object selected = addressBox.getSelectedItem();
         if (selected == null || !server.isRunning()) {
             return;
         }
-        String url = server.scheme() + "://" + selected + ":" + server.getPort() + "/";
-        // Rendered as a link: clicking it opens the default browser.
-        urlLabel.setText("<html><a href=\"" + url + "\">" + url + "</a></html>");
-        qrPanel.show(url);
+        String base = server.scheme() + "://" + selected + ":" + server.getPort() + "/";
+        linksPanel.removeAll();
+        java.util.Map<String, String> urls = new java.util.LinkedHashMap<>();
+        urls.put("app", base);
+        if (pairingBox.isSelected() && pairCode != null) {
+            urls.put("pair", base + "?pair=" + java.net.URLEncoder.encode(
+                    pairCode, java.nio.charset.StandardCharsets.UTF_8));
+        }
+        if (dirBrowseBox.isSelected()) {
+            urls.put("files", base + "files/");
+        }
+        if (!urls.containsKey(qrTarget)) {
+            qrTarget = "app";
+        }
+        for (var entry : urls.entrySet()) {
+            linksPanel.add(linkRow(entry.getKey(), entry.getValue()));
+        }
+        qrPanel.show(urls.get(qrTarget));
+        linksPanel.revalidate();
+        linksPanel.repaint();
         pack();
     }
 
-    /** Opens the currently shown URL in the user's default browser. */
-    private void openInBrowser() {
-        Object selected = addressBox.getSelectedItem();
-        if (selected == null || !server.isRunning()) {
-            return;
-        }
-        String url = server.scheme() + "://" + selected + ":" + server.getPort() + "/";
+    private JPanel linkRow(String key, String url) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
+        String title = switch (key) {
+            case "pair" -> "Pair";
+            case "files" -> "Files";
+            default -> "App";
+        };
+        JLabel prefix = new JLabel(title + ":");
+        row.add(prefix);
+        JLabel link = new JLabel("<html><a href=\"" + url + "\">" + url + "</a></html>");
+        link.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+        link.setToolTipText("pair".equals(key)
+                ? "Open in your default browser (code valid 10 minutes, pairs one device)"
+                : "Open in your default browser");
+        link.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                openInBrowser(url);
+            }
+        });
+        row.add(link);
+        JButton copyButton = new JButton("Copy");
+        copyButton.setToolTipText("Copy this link");
+        copyButton.addActionListener(e -> java.awt.Toolkit.getDefaultToolkit()
+                .getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(url), null));
+        row.add(copyButton);
+        javax.swing.JToggleButton qrButton = new javax.swing.JToggleButton("QR");
+        qrButton.setToolTipText("Show this link as the QR code below");
+        qrButton.setSelected(key.equals(qrTarget));
+        qrButton.addActionListener(e -> {
+            qrTarget = key;
+            rebuildLinks();
+        });
+        row.add(qrButton);
+        return row;
+    }
+
+    /** Opens a URL in the user's default browser. */
+    private void openInBrowser(String url) {
         try {
             if (java.awt.Desktop.isDesktopSupported()
                     && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
