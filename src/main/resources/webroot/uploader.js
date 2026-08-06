@@ -46,7 +46,7 @@ const meta = await metaHandle.createSyncAccessHandle();
 try {
 meta.truncate(0);
 meta.write(new TextEncoder().encode(
-JSON.stringify({ key, name: path, size: file.size, chunkSize })
+JSON.stringify({ key, name: path, size: file.size, chunkSize, mtime: file.lastModified })
 ), { at: 0 });
 meta.flush();
 } finally {
@@ -62,6 +62,7 @@ name: path,
 size: file.size,
 chunkSize,
 concurrency,
+mtime: file.lastModified,
 blob: staged ? null : file,
 });
 }
@@ -73,7 +74,7 @@ const meta = JSON.parse(await (await metaHandle.getFile()).text());
 await transfer({ ...meta, concurrency, blob: null });
 }
 
-async function transfer({ key, name, size, chunkSize, concurrency = 3, blob }) {
+async function transfer({ key, name, size, chunkSize, concurrency = 3, mtime, blob }) {
 let source = blob;
 if (!source) {
 const dir = await opfsDir();
@@ -81,7 +82,8 @@ source = await (await dir.getFileHandle(`${key}.bin`)).getFile();
 }
 
 const initRes = await fetch(
-`/api/upload/init?key=${key}&path=${encodeURIComponent(name)}&size=${size}&chunkSize=${chunkSize}`,
+`/api/upload/init?key=${key}&path=${encodeURIComponent(name)}&size=${size}` +
+`&chunkSize=${chunkSize}${mtime > 0 ? `&mtime=${mtime}` : ""}`,
 { method: "POST" }
 );
 if (!initRes.ok) throw new Error(`init failed (${initRes.status})`);

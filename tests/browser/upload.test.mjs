@@ -42,6 +42,11 @@ const opfs = await page.evaluate(async () => {
 console.log("OPFS available:", opfs);
 
 await page.setInputFiles("#file-input", srcPath);
+// Nothing uploads until the queue is confirmed.
+await page.waitForSelector("#queue-list li", { timeout: 15000 });
+const chunksBeforeConfirm = totalChunks;
+console.log("queued without uploading:", chunksBeforeConfirm === 0);
+await page.click("#upload-button");
 await page.waitForSelector("#send-list .status-ok", { timeout: 60000 });
 const status = await page.textContent("#send-list .status-ok");
 console.log("UI status:", status);
@@ -56,9 +61,15 @@ const listed = await page.textContent("#server-list");
 console.log("listed in UI:", listed.includes(finalName));
 console.log(`chunk digests: ${digestedChunks}/${totalChunks} requests carried sha256`);
 
+// The upload must keep the source file's modification time.
+const { statSync } = await import("node:fs");
+const mtimeDelta = Math.abs(statSync(destPath).mtimeMs - statSync(srcPath).mtimeMs);
+console.log("mtime preserved (delta ms):", Math.round(mtimeDelta));
+
 if (errors.length) console.log("BROWSER ERRORS:", errors);
 const ok = opfs && srcHash === destHash && listed.includes(finalName)
-  && totalChunks > 0 && digestedChunks === totalChunks && errors.length === 0;
+  && totalChunks > 0 && digestedChunks === totalChunks && errors.length === 0
+  && chunksBeforeConfirm === 0 && mtimeDelta < 2000;
 console.log(ok ? "TEST PASS" : "TEST FAIL");
 await browser.close();
 process.exit(ok ? 0 : 1);

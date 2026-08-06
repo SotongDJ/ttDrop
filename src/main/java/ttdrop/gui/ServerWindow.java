@@ -37,7 +37,6 @@ public final class ServerWindow extends JFrame {
     private final JTextField portField;
     private final javax.swing.JCheckBox httpsBox = new javax.swing.JCheckBox("HTTPS");
     private final javax.swing.JCheckBox autostartBox = new javax.swing.JCheckBox("Start on launch");
-    private final javax.swing.JCheckBox fileOpsBox = new javax.swing.JCheckBox("Allow browser file management");
     private final javax.swing.JCheckBox dirBrowseBox = new javax.swing.JCheckBox("Allow directory browsing");
     private final javax.swing.JCheckBox pairingBox = new javax.swing.JCheckBox("Require device pairing");
     private final JPanel linksPanel = new JPanel();
@@ -63,9 +62,6 @@ public final class ServerWindow extends JFrame {
                 "Serve over TLS with a self-signed certificate (devices must accept it once)");
         this.autostartBox.setSelected(config.getAutostart(false));
         this.autostartBox.setToolTipText("Start the server automatically when ttDrop opens");
-        this.fileOpsBox.setSelected(server.isFileOpsEnabled());
-        this.fileOpsBox.setToolTipText(
-                "Let devices rename and delete files in the shared folder from their browser (off by default)");
         this.dirBrowseBox.setSelected(server.isDirBrowseEnabled());
         this.dirBrowseBox.setToolTipText(
                 "Show browsable folder listing pages when a /files/ URL is opened directly (off by default)");
@@ -100,7 +96,6 @@ public final class ServerWindow extends JFrame {
         controls.add(statusLabel);
         main.add(controls);
         JPanel permissions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        permissions.add(fileOpsBox);
         permissions.add(dirBrowseBox);
         main.add(permissions);
         JPanel pairingRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
@@ -128,11 +123,6 @@ public final class ServerWindow extends JFrame {
         rootButton.addActionListener(e -> chooseRoot());
         addressBox.addActionListener(e -> rebuildLinks());
         // All three take effect immediately, even while running.
-        fileOpsBox.addActionListener(e -> {
-            server.setFileOpsEnabled(fileOpsBox.isSelected());
-            config.setFileOps(fileOpsBox.isSelected());
-            config.save();
-        });
         dirBrowseBox.addActionListener(e -> {
             server.setDirBrowseEnabled(dirBrowseBox.isSelected());
             config.setDirBrowse(dirBrowseBox.isSelected());
@@ -363,15 +353,20 @@ public final class ServerWindow extends JFrame {
         return out;
     }
 
-    /** Pick a new file root (only while stopped); persisted in config. */
+    /** Pick a new file root (only while stopped); persisted in config.
+     *  Bounded to the working directory the jar was started from —
+     *  sharing arbitrary folders above it is deliberately impossible. */
     private void chooseRoot() {
+        java.nio.file.Path workingDir =
+                java.nio.file.Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+        java.nio.file.Path start = server.getFileRoot().startsWith(workingDir)
+                ? server.getFileRoot() : workingDir;
         java.nio.file.Path newRoot = FolderPicker.pick(this,
-                "Choose the folder ttDrop shares", server.getFileRoot(), null);
+                "Choose the folder ttDrop shares (inside " + workingDir + ")", start, workingDir);
         if (newRoot == null) {
             return;
         }
         server = new TtDropServer(newRoot);
-        server.setFileOpsEnabled(fileOpsBox.isSelected());
         server.setDirBrowseEnabled(dirBrowseBox.isSelected());
         server.setPairingRequired(pairingBox.isSelected());
         server.devices().setOnChange(this::onDevicesChanged);

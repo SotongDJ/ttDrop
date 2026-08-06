@@ -8,6 +8,39 @@ that section to `## vX.Y.Z — title (YYYY-MM-DD)`.
 
 ## Unreleased
 
+## v0.22.0 — the file manager release (2026-08-05)
+
+- Uploads now confirm before sending: chosen or dropped files land in
+  an upload queue showing name, size, original timestamp, and media
+  thumbnails (images and videos), with per-item remove and Clear. A
+  drop-down lists the shared folder and its subfolders as the upload
+  target; "Upload N files" starts the transfers.
+- Uploaded files keep their original modification time instead of the
+  assembly time (optional `mtime` on `init`, applied on `complete`).
+- Full file manager in the web app: create folder, move (into any
+  folder, auto-renaming "name (n)" on conflict), rename, delete — and
+  view modes: List, Details (with exact timestamps), Small/Medium/
+  Large/Extra-large icons, and Gallery (media thumbnails); the choice
+  persists per device. Common video/audio types (mp4, webm, mov, mkv,
+  mp3, m4a, wav, ogg, flac) joined the inline-view whitelist so
+  thumbnails and direct viewing work.
+- Deleting no longer destroys anything: items move to a recycle bin
+  (`.ttdrop-trash/`, hidden everywhere) with Restore (original
+  location, "name (n)" on conflict) and Remove-forever, per device —
+  devices only ever see their own deleted items. New `/api/trash`
+  endpoints; client paths can never name the staging or trash areas.
+- File management is always on server-side: the global toggle, its
+  flags and checkbox are gone — per-device Write and per-subfolder
+  deny lists are the only (and sufficient) control. `--fileops`/
+  `--no-fileops` are accepted-but-ignored with a notice.
+- The shared-folder chooser is bounded to the working directory the
+  jar was started from — sharing arbitrary folders above it is no
+  longer possible.
+- Tests: queue-confirm asserted (nothing uploads before the button),
+  mtime preservation asserted, fileops test extended to mkdir/move/
+  restore/purge (8 checks); the obsolete fileops-disabled test is
+  gone. Full 11-test suite green over HTTP and HTTPS.
+
 ## v0.21.0 — shareable links panel (2026-08-05)
 
 - The single URL under the address picker is now a links panel with up

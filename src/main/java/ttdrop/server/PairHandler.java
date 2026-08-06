@@ -25,17 +25,14 @@ public final class PairHandler implements HttpHandler {
     private final Devices devices;
     private final Path fileRoot;
     private final BooleanSupplier pairingRequired;
-    private final BooleanSupplier fileOps;
     private final BooleanSupplier dirBrowse;
     private final java.util.function.Supplier<String> scheme;
 
     public PairHandler(Devices devices, Path fileRoot, BooleanSupplier pairingRequired,
-            BooleanSupplier fileOps, BooleanSupplier dirBrowse,
-            java.util.function.Supplier<String> scheme) {
+            BooleanSupplier dirBrowse, java.util.function.Supplier<String> scheme) {
         this.devices = devices;
         this.fileRoot = fileRoot;
         this.pairingRequired = pairingRequired;
-        this.fileOps = fileOps;
         this.dirBrowse = dirBrowse;
         this.scheme = scheme;
     }
@@ -90,7 +87,7 @@ public final class PairHandler implements HttpHandler {
                     .append(",\"path\":").append(FilesHandler.quote(device.relPath()))
                     .append(",\"read\":").append(device.read())
                     .append(",\"write\":").append(device.write())
-                    .append(",\"fileOps\":").append(fileOps.getAsBoolean() && device.write())
+                    .append(",\"fileOps\":").append(device.write())
                     .append(",\"browse\":").append(dirBrowse.getAsBoolean() && device.browse());
         }
         UploadHandler.sendJson(ex, 200, json.append("}").toString());

@@ -22,6 +22,8 @@ const page = await (await browser.newContext(CONTEXT_OPTIONS)).newPage();
 await page.goto(BASE, { waitUntil: "networkidle" });
 
 await page.setInputFiles("#folder-input", src);
+await page.waitForSelector("#queue-list li", { timeout: 15000 });
+await page.click("#upload-button");
 await page.waitForFunction(
   () => document.querySelectorAll("#send-list .status-ok").length === 3,
   { timeout: 120000 }

@@ -75,10 +75,12 @@ public final class ZipHandler implements HttpHandler {
                     "attachment; filename*=UTF-8''" + URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20"));
             ex.sendResponseHeaders(200, 0);
             Path staging = fileRoot.resolve(UploadHandler.PART_DIR);
+            Path trash = fileRoot.resolve(TrashHandler.DIR);
             try (ZipOutputStream zip = new ZipOutputStream(ex.getResponseBody());
                     var walk = Files.walk(target)) {
                 for (Path file : (Iterable<Path>) walk.sorted()::iterator) {
-                    if (!Files.isRegularFile(file) || file.startsWith(staging)) {
+                    if (!Files.isRegularFile(file) || file.startsWith(staging)
+                            || file.startsWith(trash)) {
                         continue;
                     }
                     if (!device.canReadSub(Devices.Device.firstSegment(root, file))) {

@@ -24,6 +24,8 @@ await context.route("**/api/upload/chunk*", (route) => {
 
 await page.goto(BASE, { waitUntil: "networkidle" });
 await page.setInputFiles("#file-input", srcPath);
+await page.waitForSelector("#queue-list li", { timeout: 15000 });
+await page.click("#upload-button");
 await page.waitForSelector("#send-list .status-err", { timeout: 60000 });
 console.log("interrupted as expected:", await page.textContent("#send-list .status-err"));
 

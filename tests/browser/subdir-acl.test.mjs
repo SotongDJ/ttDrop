@@ -37,7 +37,7 @@ writeFileSync(join(serveDir, "dev", "secretsub", "hidden.txt"), "hidden");
 writeFileSync(join(serveDir, "dev", "readonly", "keep.txt"), "keep");
 writeFileSync(join(serveDir, "dev", "open", "hello.txt"), "hello");
 
-const server = spawn(java, ["-jar", jar, "--headless", "--http", "--port", "0", "--fileops"],
+const server = spawn(java, ["-jar", jar, "--headless", "--http", "--port", "0"],
   { cwd: serveDir, env: { ...process.env, TTDROP_CONFIG_DIR: configDir } });
 const port = await new Promise((resolve, reject) => {
   let buf = "";

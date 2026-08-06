@@ -110,6 +110,8 @@ try {
   // Upload lands inside the device's folder.
   writeFileSync(join(serveDir, "..", "pair-upload.txt"), "scoped");
   await page.setInputFiles("#file-input", join(serveDir, "..", "pair-upload.txt"));
+  await page.waitForSelector("#queue-list li", { timeout: 15000 });
+  await page.click("#upload-button");
   await page.waitForSelector("#send-list .status-ok", { timeout: 60000 });
   check("upload landed in the device folder",
     existsSync(join(serveDir, "phone_a", "pair-upload.txt")));

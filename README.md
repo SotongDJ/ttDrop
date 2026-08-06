@@ -31,8 +31,8 @@ dropped connections and page reloads.
 3. Run the jar (double-click, or `java -jar ttdrop.jar`). Press
    **Start** in the window — or run `java -jar ttdrop.jar --headless`
    on machines without a display (`--port <n>` to override the port,
-   default 4646; `--http` to disable TLS; `--fileops` and `--browse`
-   to enable the optional toggles below).
+   default 4646; `--http` to disable TLS; `--browse` to enable
+   directory listing pages).
 4. **Pair each device**: click **Pair device…** in the server window
    and let the other device scan the QR code (or open the site and
    type the one-time code), then give the device a name — lower-case
@@ -76,8 +76,16 @@ dropped connections and page reloads.
 - **Directory browsing** (off by default): flip the toggle and opening
   a `/files/` URL directly in any browser shows a browsable listing
   page; whitelisted types (images, PDF, plain text) display inline.
-- **Manage server files from the browser** (off by default): rename
-  and delete (recursively for folders) right from the file list.
+- **A full file manager in the browser**: create folders, move
+  (auto-renaming on conflict), rename, and delete — deletions go to a
+  per-device **recycle bin** with restore, never straight to
+  destruction. View modes from list and details (exact timestamps) to
+  icon grids and a media gallery with image/video thumbnails. Access
+  is controlled per device (Write switch + subfolder checklist).
+- **Uploads you confirm**: chosen files wait in a queue — with media
+  thumbnails, sizes, and original timestamps — while you pick the
+  target folder from a drop-down; nothing transfers until you press
+  Upload, and uploaded files keep their original modification time.
 - **Share by QR**: the server window shows a QR code of its URL, and
   the page itself can display one (`/qr.png`) to pass to other
   devices.
@@ -154,8 +162,7 @@ ttDrop 由一個小巧的 **Java 伺服器程式**（Windows/macOS/Linux）加�
 3. 執行 jar（雙擊，或 `java -jar ttdrop.jar`），在視窗中按下
    **Start**——沒有螢幕的機器可執行
    `java -jar ttdrop.jar --headless`（`--port <n>` 可更改連接埠，
-   預設 4646；`--http` 停用 TLS；`--fileops` 與 `--browse`
-   可啟用下方的選用功能）。
+   預設 4646；`--http` 停用 TLS；`--browse` 可啟用目錄列表頁面）。
 4. **為每台裝置配對**：在伺服器視窗點選 **Pair device…**，讓另一台
    裝置掃描 QR Code（或開啟網站後輸入一次性配對碼），並為裝置取一個
    名稱——小寫英文字母、數字與 `_`，且在此伺服器上不得重複。裝置在
@@ -192,8 +199,14 @@ ttDrop 由一個小巧的 **Java 伺服器程式**（Windows/macOS/Linux）加�
 - **目錄瀏覽**（預設關閉）：開啟開關後，直接在任何瀏覽器開啟
   `/files/` 網址即可看到可瀏覽的目錄列表頁面；白名單類型
   （圖片、PDF、純文字）會直接在瀏覽器中顯示。
-- **從瀏覽器管理伺服器檔案**（預設關閉）：直接在檔案清單中重新命名
-  與刪除（資料夾為遞迴刪除）。
+- **瀏覽器中的完整檔案管理員**：建立資料夾、移動（同名時自動改名）、
+  重新命名與刪除——刪除會進入各裝置專屬的**資源回收筒**，可隨時
+  還原，絕不直接銷毀。檢視模式從清單、詳細資料（含確切時間戳記）
+  到大小圖示格狀與媒體藝廊（圖片／影片縮圖）。存取權限依裝置控制
+  （寫入開關＋子資料夾勾選清單）。
+- **上傳前先確認**：選好的檔案會先進入上傳佇列——顯示媒體縮圖、
+  大小與原始時間戳記——並可從下拉選單挑選目標資料夾；按下 Upload
+  才開始傳輸，上傳後的檔案保留原始修改時間。
 - **QR Code 分享**：伺服器視窗會顯示網址的 QR Code，頁面本身也能
   顯示（`/qr.png`）以便傳給其他裝置。
 - **自由選擇分享內容**：可從視窗更換分享的資料夾、以 `--root <dir>`

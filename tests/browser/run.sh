@@ -21,11 +21,10 @@ JAVA=java
 [ -x "$REPO_ROOT/.pixi/envs/default/bin/java" ] && JAVA="$REPO_ROOT/.pixi/envs/default/bin/java"
 
 cd "$SERVE_DIR"
-# --fileops: the fileops test exercises rename/delete, which is
-# disabled by default; fileops-disabled.test.mjs covers the default.
 # --open: pairing is on by default; pairing.test.mjs covers it with
-# its own server, the rest of the suite runs in open mode.
-"$JAVA" -jar "$REPO_ROOT/dist/ttdrop.jar" --headless --port "$PORT" "$SCHEME_FLAG" --fileops --open &
+# its own server, the rest of the suite runs in open mode. File
+# management is always on (per-device permissions govern it).
+"$JAVA" -jar "$REPO_ROOT/dist/ttdrop.jar" --headless --port "$PORT" "$SCHEME_FLAG" --open &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 # Wait for readiness instead of a fixed sleep: the first HTTPS start
@@ -38,7 +37,7 @@ done
 
 cd "$REPO_ROOT/tests/browser"
 FAIL=0
-for test in upload.test.mjs upload-resume.test.mjs download-resume.test.mjs folder-upload.test.mjs cancel.test.mjs fileops.test.mjs fileops-disabled.test.mjs zip-download.test.mjs inline-view.test.mjs dir-browse.test.mjs pairing.test.mjs subdir-acl.test.mjs; do
+for test in upload.test.mjs upload-resume.test.mjs download-resume.test.mjs folder-upload.test.mjs cancel.test.mjs fileops.test.mjs zip-download.test.mjs inline-view.test.mjs dir-browse.test.mjs pairing.test.mjs subdir-acl.test.mjs; do
     echo "=== $test ==="
     TTDROP_PORT="$PORT" TTDROP_DIR="$SERVE_DIR" node "$test" || FAIL=1
 done
