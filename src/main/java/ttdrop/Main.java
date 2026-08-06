@@ -19,7 +19,7 @@ import ttdrop.server.TtDropServer;
  */
 public final class Main {
     /** Shown in the window title and startup line; bump with pixi.toml. */
-    public static final String VERSION = "0.21.0";
+    public static final String VERSION = "0.22.0";
     public static final int DEFAULT_PORT = 4646;
 
     private Main() {
@@ -40,7 +40,6 @@ public final class Main {
         int port = config.getPort(DEFAULT_PORT);
         boolean https = config.getHttps(true);
         boolean headless = false;
-        boolean fileOps = config.getFileOps(false);
         boolean dirBrowse = config.getDirBrowse(false);
         boolean pairing = config.getPairing(true);
         Path rootFlag = null;
@@ -50,8 +49,11 @@ public final class Main {
                 case "--headless" -> headless = true;
                 case "--https" -> https = true;
                 case "--http" -> https = false;
-                case "--fileops" -> fileOps = true;
-                case "--no-fileops" -> fileOps = false;
+                // File management is always on since v0.22; per-device
+                // permissions govern access. Accepted for compatibility.
+                case "--fileops", "--no-fileops" ->
+                        System.err.println(args[i] + " is obsolete: file management is"
+                                + " always on; use per-device permissions instead");
                 case "--browse" -> dirBrowse = true;
                 case "--no-browse" -> dirBrowse = false;
                 case "--pairing" -> pairing = true;
@@ -60,7 +62,7 @@ public final class Main {
                 default -> {
                     System.err.println("Unknown argument: " + args[i]);
                     System.err.println("Usage: java -jar ttdrop.jar [--port <n>] [--root <dir>]"
-                            + " [--headless] [--https|--http] [--fileops|--no-fileops]"
+                            + " [--headless] [--https|--http]"
                             + " [--browse|--no-browse] [--pairing|--open]");
                     System.exit(2);
                 }
@@ -77,7 +79,6 @@ public final class Main {
             System.exit(2);
         }
         TtDropServer server = new TtDropServer(fileRoot);
-        server.setFileOpsEnabled(fileOps);
         server.setDirBrowseEnabled(dirBrowse);
         server.setPairingRequired(pairing);
 

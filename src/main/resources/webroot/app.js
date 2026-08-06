@@ -210,15 +210,133 @@ relPath: file.webkitRelativePath || file.name,
 })));
 }
 
+const pendingQueue = [];
+const queueBar = document.getElementById("queue-bar");
+const queueList = document.getElementById("queue-list");
+const targetSelect = document.getElementById("target-select");
+const uploadButton = document.getElementById("upload-button");
+const IMG_EXT = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "bmp", "ico", "svg"]);
+const VID_EXT = new Set(["mp4", "m4v", "webm", "mov", "mkv"]);
+
+function extOf(name) {
+const dot = name.lastIndexOf(".");
+return dot < 0 ? "" : name.slice(dot + 1).toLowerCase();
+}
+
 function queueEntries(entries) {
 for (const { file, relPath } of entries) {
-const key = transferKey(relPath, file.size, file.lastModified);
+if (pendingQueue.some((p) => p.relPath === relPath && p.file.size === file.size)) continue;
+pendingQueue.push({ file, relPath });
+}
+renderQueue();
+}
+
+function thumbFor(file) {
+const ext = extOf(file.name);
+const isImage = file.type.startsWith("image/") || IMG_EXT.has(ext);
+const isVideo = file.type.startsWith("video/") || VID_EXT.has(ext);
+if (!isImage && !isVideo) return iconSpan(false);
+const url = URL.createObjectURL(file);
+let node;
+if (isImage) {
+node = el("img", "thumb");
+node.alt = "";
+} else {
+node = el("video", "thumb");
+node.muted = true;
+node.preload = "metadata";
+}
+node.src = url;
+node.dataset.objectUrl = url;
+return node;
+}
+
+function releaseThumb(item) {
+if (item.thumbNode && item.thumbNode.dataset && item.thumbNode.dataset.objectUrl) {
+URL.revokeObjectURL(item.thumbNode.dataset.objectUrl);
+}
+}
+
+function renderQueue() {
+queueList.textContent = "";
+queueBar.hidden = pendingQueue.length === 0;
+uploadButton.textContent =
+`Upload ${pendingQueue.length} file${pendingQueue.length === 1 ? "" : "s"}`;
+for (const item of pendingQueue) {
+const li = el("li");
+item.thumbNode = thumbFor(item.file);
+li.append(item.thumbNode);
+li.append(el("span", "name", item.relPath));
+li.append(el("span", "size", formatSize(item.file.size)));
+li.append(stampSpan(item.file.lastModified));
+const remove = el("button", "cancel", "✕");
+remove.type = "button";
+remove.title = "Remove from queue";
+remove.onclick = () => {
+releaseThumb(item);
+pendingQueue.splice(pendingQueue.indexOf(item), 1);
+renderQueue();
+};
+li.append(remove);
+queueList.append(li);
+}
+}
+
+async function refreshTargets() {
+const seen = [""];
+const walk = async (prefix, depth) => {
+if (depth > 3 || seen.length > 120) return;
+try {
+const res = await fetch(`/files/${prefix}`, { headers: { Accept: "application/json" } });
+if (!res.ok) return;
+const data = await res.json();
+for (const entry of data.entries) {
+if (!entry.dir) continue;
+const path = `${prefix}${entry.name}/`;
+seen.push(path);
+await walk(path, depth + 1);
+}
+} catch {
+}
+};
+await walk("", 1);
+const previous = targetSelect.value;
+targetSelect.textContent = "";
+for (const path of seen) {
+const option = el("option", null, path === "" ? "/" : `/${path}`);
+option.value = path;
+targetSelect.append(option);
+}
+if ([...targetSelect.options].some((o) => o.value === previous)) {
+targetSelect.value = previous;
+}
+}
+
+targetSelect.addEventListener("focus", () => {
+refreshTargets();
+}, { once: false });
+
+uploadButton.addEventListener("click", () => {
+const target = targetSelect.value || "";
+for (const item of pendingQueue) {
+releaseThumb(item);
+const relPath = target + item.relPath;
+const key = transferKey(relPath, item.file.size, item.file.lastModified);
 if (transfers.has(key)) continue;
-addTransferRow(key, relPath, file.size);
+addTransferRow(key, relPath, item.file.size);
 spawnWorker(
-{ cmd: "upload", key, file, relPath, chunkSize: CHUNK_SIZE, concurrency: CONCURRENCY });
+{ cmd: "upload", key, file: item.file, relPath, chunkSize: CHUNK_SIZE,
+concurrency: CONCURRENCY });
 }
-}
+pendingQueue.length = 0;
+renderQueue();
+});
+
+document.getElementById("queue-clear").addEventListener("click", () => {
+pendingQueue.forEach(releaseThumb);
+pendingQueue.length = 0;
+renderQueue();
+});
 
 const downloads = new Map();
 
@@ -403,6 +521,12 @@ span.innerHTML = dir ? ICON_DIR : ICON_FILE;
 return span;
 }
 
+function stampSpan(millis) {
+const span = el("span", "age", new Date(millis).toLocaleString());
+span.title = formatAgo(millis);
+return span;
+}
+
 function formatAgo(mtime) {
 const s = Math.max(0, (Date.now() - mtime) / 1000);
 if (s < 45) return "just now";
@@ -418,16 +542,28 @@ const n = Math.max(1, Math.floor(value));
 return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
 }
 
-function renderListing(entries, path, fileOps) {
-serverList.textContent = "";
-if (!entries.length) {
-serverList.append(el("li", "muted", "Empty folder"));
-return;
+const viewSelect = document.getElementById("view-select");
+const newFolderButton = document.getElementById("new-folder");
+let viewMode = localStorage.getItem("ttdrop-view") || "details";
+viewSelect.value = viewMode;
+viewSelect.addEventListener("change", () => {
+viewMode = viewSelect.value;
+localStorage.setItem("ttdrop-view", viewMode);
+loadDir(currentDir).catch(showOffline);
+});
+newFolderButton.addEventListener("click", async () => {
+const name = window.prompt("New folder name:");
+if (!name) return;
+const res = await fetch(
+`/api/files/mkdir?path=${encodeURIComponent(currentDir + name)}`, { method: "POST" });
+if (!res.ok) {
+const body = await res.json().catch(() => ({}));
+window.alert(`Could not create folder: ${body.error || res.status}`);
 }
-const sorted = [...entries].sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name));
-for (const entry of sorted) {
-const li = el("li");
-li.append(iconSpan(entry.dir));
+loadDir(currentDir).catch(showOffline);
+});
+
+function nameCell(entry, path) {
 const name = el("span", "name");
 if (entry.dir) {
 const link = el("a", null, `${entry.name}/`);
@@ -447,20 +583,99 @@ startDownload(filePath, entry.name, entry.size);
 };
 name.append(link);
 }
-li.append(name);
-if (!entry.dir) li.append(el("span", "size", formatSize(entry.size)));
-if (entry.mtime) li.append(el("span", "age", formatAgo(entry.mtime)));
+return name;
+}
+
+function entryOps(entry, path, fileOps) {
+const ops = el("span", "ops");
 if (entry.dir) {
-li.append(fileOpButton("⬇", `Download ${entry.name} as zip`, () => {
+ops.append(fileOpButton("⬇", `Download ${entry.name} as zip`, () => {
 window.location.href = `/api/zip?path=${encodeURIComponent(path + entry.name)}`;
 }));
 }
 if (fileOps) {
-li.append(fileOpButton("✎", `Rename ${entry.name}`, () => renameEntry(path, entry)));
-li.append(fileOpButton("🗑", `Delete ${entry.name}`, () => deleteEntry(path, entry)));
+ops.append(fileOpButton("✎", `Rename ${entry.name}`, () => renameEntry(path, entry)));
+ops.append(fileOpButton("⇄", `Move ${entry.name}`, () => moveEntry(path, entry)));
+ops.append(fileOpButton("🗑", `Delete ${entry.name}`, () => deleteEntry(path, entry)));
+}
+return ops;
+}
+
+function serverThumb(entry, path) {
+const ext = extOf(entry.name);
+const filePath = `/files/${path}${encodeURIComponent(entry.name)}`;
+if (!entry.dir && IMG_EXT.has(ext)) {
+const img = el("img", "tile-thumb");
+img.loading = "lazy";
+img.alt = "";
+img.src = filePath;
+return img;
+}
+if (!entry.dir && VID_EXT.has(ext)) {
+const video = el("video", "tile-thumb");
+video.muted = true;
+video.preload = "metadata";
+video.src = filePath;
+return video;
+}
+const span = iconSpan(entry.dir);
+span.classList.add("tile-icon");
+return span;
+}
+
+function renderListing(entries, path, fileOps) {
+serverList.textContent = "";
+newFolderButton.hidden = !fileOps;
+trashButton.hidden = !fileOps;
+const grid = viewMode.startsWith("icons") || viewMode === "gallery";
+serverList.className = grid
+? `file-list grid ${viewMode}`
+: "file-list repo-list";
+if (!entries.length) {
+serverList.append(el("li", "muted", "Empty folder"));
+return;
+}
+let sorted = [...entries].sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name));
+if (viewMode === "gallery") {
+sorted = sorted.filter((entry) => entry.dir
+|| IMG_EXT.has(extOf(entry.name)) || VID_EXT.has(extOf(entry.name)));
+if (!sorted.length) {
+serverList.className = "file-list repo-list";
+serverList.append(el("li", "muted", "No media in this folder"));
+return;
+}
+}
+for (const entry of sorted) {
+const li = el("li");
+if (grid) {
+li.append(serverThumb(entry, path));
+li.append(nameCell(entry, path));
+li.append(entryOps(entry, path, fileOps));
+} else {
+li.append(iconSpan(entry.dir));
+li.append(nameCell(entry, path));
+if (viewMode === "details") {
+if (!entry.dir) li.append(el("span", "size", formatSize(entry.size)));
+if (entry.mtime) li.append(stampSpan(entry.mtime));
+}
+li.append(entryOps(entry, path, fileOps));
 }
 serverList.append(li);
 }
+}
+
+async function moveEntry(path, entry) {
+const to = window.prompt(
+`Move "${entry.name}" to folder (path from the top, empty = top):`, path);
+if (to === null) return;
+const res = await fetch(
+`/api/files/move?path=${encodeURIComponent(path + entry.name)}` +
+`&to=${encodeURIComponent(to.trim())}`, { method: "POST" });
+if (!res.ok) {
+const body = await res.json().catch(() => ({}));
+window.alert(`Move failed: ${body.error || res.status}`);
+}
+loadDir(currentDir).catch(showOffline);
 }
 
 function fileOpButton(label, title, onClick) {
@@ -486,7 +701,7 @@ loadDir(currentDir).catch(showOffline);
 
 async function deleteEntry(path, entry) {
 const what = entry.dir ? `folder "${entry.name}" and everything in it` : `"${entry.name}"`;
-if (!window.confirm(`Delete ${what}?`)) return;
+if (!window.confirm(`Move ${what} to the recycle bin?`)) return;
 const res = await fetch(
 `/api/files/delete?path=${encodeURIComponent(path + entry.name)}`,
 { method: "POST" });
@@ -494,6 +709,62 @@ if (!res.ok && res.status !== 404) {
 window.alert(`Delete failed: ${res.status}`);
 }
 loadDir(currentDir).catch(showOffline);
+if (!trashPanel.hidden) refreshTrash();
+}
+
+const trashButton = document.getElementById("trash-button");
+const trashPanel = document.getElementById("trash-panel");
+const trashList = document.getElementById("trash-list");
+
+trashButton.addEventListener("click", () => {
+trashPanel.hidden = !trashPanel.hidden;
+if (!trashPanel.hidden) refreshTrash();
+});
+
+document.getElementById("trash-empty").addEventListener("click", async () => {
+if (!window.confirm("Remove everything in the recycle bin forever?")) return;
+const data = await (await fetch("/api/trash")).json();
+for (const item of data.items) {
+await fetch(`/api/trash/purge?id=${encodeURIComponent(item.id)}`, { method: "POST" });
+}
+refreshTrash();
+});
+
+async function refreshTrash() {
+try {
+const data = await (await fetch("/api/trash")).json();
+trashList.textContent = "";
+if (!data.items.length) {
+trashList.append(el("li", "muted", "The recycle bin is empty"));
+return;
+}
+for (const item of data.items) {
+const li = el("li");
+li.append(iconSpan(item.dir));
+const name = el("span", "name", item.name);
+name.title = `was in /${item.origPath}`;
+li.append(name);
+if (!item.dir) li.append(el("span", "size", formatSize(item.size)));
+li.append(stampSpan(item.deletedAt));
+li.append(fileOpButton("↩", `Restore ${item.name}`, async () => {
+const res = await fetch(
+`/api/trash/restore?id=${encodeURIComponent(item.id)}`, { method: "POST" });
+if (!res.ok) {
+const body = await res.json().catch(() => ({}));
+window.alert(`Restore failed: ${body.error || res.status}`);
+}
+refreshTrash();
+loadDir(currentDir).catch(showOffline);
+}));
+li.append(fileOpButton("✕", `Remove ${item.name} forever`, async () => {
+if (!window.confirm(`Remove "${item.name}" forever?`)) return;
+await fetch(`/api/trash/purge?id=${encodeURIComponent(item.id)}`, { method: "POST" });
+refreshTrash();
+}));
+trashList.append(li);
+}
+} catch {
+}
 }
 
 function showOffline() {
@@ -537,7 +808,10 @@ sendSection.hidden = session.write === false;
 receiveSection.hidden = session.read === false;
 browseSection.hidden = session.read === false;
 connStatus.textContent = session.name ? `Connected — paired as ${session.name}` : "Connected";
-if (session.read !== false) await loadDir("");
+if (session.read !== false) {
+await loadDir("");
+refreshTargets();
+}
 } catch {
 showOffline();
 }

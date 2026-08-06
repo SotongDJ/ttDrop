@@ -21,8 +21,6 @@ public final class TtDropServer {
     private final Path fileRoot;
     private HttpServer http;
     private boolean https;
-    /** Browser rename/delete; default OFF, toggleable while running. */
-    private volatile boolean fileOpsEnabled;
     /** HTML directory listings under /files/; default OFF, toggleable while running. */
     private volatile boolean dirBrowseEnabled;
     /** Session-per-device pairing; default ON, toggleable while running. */
@@ -69,17 +67,15 @@ public final class TtDropServer {
         this.https = useHttps;
         http.createContext("/", new WebRootHandler());
         http.createContext("/files/", new FilesHandler(fileRoot,
-                this::isFileOpsEnabled, this::isDirBrowseEnabled, this::device));
+                this::isDirBrowseEnabled, this::device));
         http.createContext("/api/upload/", new UploadHandler(fileRoot, this::device));
-        http.createContext("/api/files/",
-                new FileOpsHandler(fileRoot, this::isFileOpsEnabled, this::device));
+        http.createContext("/api/files/", new FileOpsHandler(fileRoot, this::device));
+        http.createContext("/api/trash", new TrashHandler(fileRoot, this::device));
         http.createContext("/api/zip", new ZipHandler(fileRoot, this::device));
         http.createContext("/api/pair", new PairHandler(devices, fileRoot,
-                this::isPairingRequired, this::isFileOpsEnabled, this::isDirBrowseEnabled,
-                this::scheme));
+                this::isPairingRequired, this::isDirBrowseEnabled, this::scheme));
         http.createContext("/api/session", new PairHandler(devices, fileRoot,
-                this::isPairingRequired, this::isFileOpsEnabled, this::isDirBrowseEnabled,
-                this::scheme));
+                this::isPairingRequired, this::isDirBrowseEnabled, this::scheme));
         http.createContext("/qr.png", new QrPngHandler(this::scheme));
         http.createContext("/ca.crt", new CaCertHandler(TlsSupport.caCertificate(ttdrop.Config.dir())));
         http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
@@ -88,14 +84,6 @@ public final class TtDropServer {
 
     public synchronized boolean isHttps() {
         return https;
-    }
-
-    public boolean isFileOpsEnabled() {
-        return fileOpsEnabled;
-    }
-
-    public void setFileOpsEnabled(boolean enabled) {
-        this.fileOpsEnabled = enabled;
     }
 
     public boolean isDirBrowseEnabled() {

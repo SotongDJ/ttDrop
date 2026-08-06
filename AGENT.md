@@ -52,6 +52,10 @@ is a core design requirement, in both directions (upload and download):
     a forward-slash relative path for folder uploads (`name` is the
     legacy flat-file spelling); every segment is sanitized, traversal
     rejected, depth capped at 32.
+  - `init` also accepts optional `mtime=` (epoch millis): stored in
+    the staging meta and re-applied to the assembled file on
+    `complete`, so uploads keep their original timestamp. The PWA
+    always sends the browser File's lastModified.
   - `PUT /api/upload/chunk?key=&index=n[&sha256=]` (raw body) → stores
     one chunk; written to a temp file then atomically renamed, so
     parallel chunk uploads and crashes are safe. Exact-size check per
@@ -87,17 +91,30 @@ is a core design requirement, in both directions (upload and download):
   a pure-JDK encoder (byte mode, versions 1–5, ECC level M, all eight
   masks) — do not swap it for a library; verify any change with
   `tests/qr/`. The Swing GUI shows the same QR for its address picker.
-- **File management** (implemented): `POST /api/files/delete?path=`
-  (file, or directory recursively) and
-  `POST /api/files/rename?path=&to=` (single sanitized name within the
-  same directory, 409 on collision). Both resolve strictly inside the
-  file root — never the root itself or `.ttdrop-part` — via the upload
-  sanitizers (`FileOpsHandler`). **Disabled by default**: requires the
-  GUI's "Allow browser file management" toggle (live, persisted) or the
-  `--fileops` flag; while off the endpoints return 403 and the `/files/`
-  listing advertises `fileOps:false` so the PWA hides the buttons. Keep
-  new privileged operations behind this same default-off pattern
-  (directory browsing above follows it too).
+- **File management** (implemented, ALWAYS ON since v0.22 — access is
+  governed entirely by the per-device write grant and subfolder deny
+  lists; `--fileops`/`--no-fileops` are accepted-but-ignored):
+  `POST /api/files/delete?path=` (moves to the recycle bin — see
+  below), `rename?path=&to=` (single sanitized name, same directory,
+  409 on collision), `mkdir?path=` (parents created, 409 when
+  blocked), and `move?path=&to=` (into target directory, "" = device
+  root; " (n)" suffix on conflict; a folder never moves into its own
+  subtree). All resolve strictly inside the device subtree — never
+  the root itself, `.ttdrop-part`, or `.ttdrop-trash` — via the
+  upload sanitizers (`FileOpsHandler`). The `/files/` listing
+  advertises `fileOps` = the device's write grant.
+- **Recycle bin** (implemented, `TrashHandler`): delete moves entries
+  to `<fileRoot>/.ttdrop-trash/<id>/item/<name>` with a sidecar meta
+  (original path relative to the file root, deleting device id,
+  timestamp) — nothing is destroyed until purged. `GET /api/trash`
+  lists ONLY the requesting device's items;
+  `POST /api/trash/restore?id=` moves back to the original location
+  (recreating folders, " (n)" on conflict, 403 when the original
+  location is outside the device subtree or write-denied);
+  `POST /api/trash/purge?id=` deletes forever. The trash dir is
+  hidden from listings, excluded from zips, and unreachable as a
+  client path (sanitizePath rejects `.ttdrop-part`/`.ttdrop-trash`
+  segments — this also closes writes into the staging area).
 - **Zip downloads** (implemented): `GET /api/zip?path=<dir>` streams a
   recursive zip of a directory (empty path = whole root; staging
   excluded; sanitized/traversal-checked). Read-only, so not gated by
@@ -157,8 +174,9 @@ is a core design requirement, in both directions (upload and download):
 - **Download protocol** (implemented): `/files/<path>` supports `HEAD`
   and single-range `Range: bytes=a-b` GETs (206 + `Content-Range`,
   416 on bad ranges) with an ETag of `"size-mtime"`. A whitelist of
-  extensions (`FilesHandler.VIEWABLE`: images, pdf, text-likes as
-  text/plain) is served `inline` with `Content-Security-Policy:
+  extensions (`FilesHandler.VIEWABLE`: images, pdf, common video/audio
+  containers, text-likes as text/plain) is served `inline` with
+  `Content-Security-Policy:
   sandbox` + `nosniff` so direct `/files/` URLs display in the
   browser; every other type — HTML deliberately included — is an
   `attachment` download. Never inline-render non-whitelisted uploads:
@@ -245,9 +263,11 @@ https://localhost:<port>/` must succeed with no `-k`.
   working directory; the working directory is exclusively the file area.
   Implemented as `ttdrop.Config` (`config.properties`; keys: `port`,
   `https` (default true), `root`, `autostart` (default false),
-  `fileOps` (default false), `dirBrowse` (default false), `pairing`
-  (default true)); paired devices live in `devices.properties` beside
-  it. `TTDROP_CONFIG_DIR` overrides the directory.
+  `dirBrowse` (default false), `pairing` (default true); a legacy
+  `fileOps` key is ignored); paired devices live in
+  `devices.properties` beside it. `TTDROP_CONFIG_DIR` overrides the
+  directory. The GUI's shared-folder chooser is bounded to the
+  working directory the jar was started from.
 - The GUI shows a **links panel** while running: App (`/`), Pair
   (`/?pair=CODE`, only while pairing is required), and Files
   (`/files/`, only while directory browsing is enabled). Every row is
@@ -477,15 +497,16 @@ control. Run it for any change under `src/main/java/jacross/`.
 
 Browser tests live in `tests/browser/` (plain Node scripts, exit 0/1):
 upload, upload-resume, download-resume, folder-upload, cancel,
-fileops, fileops-disabled, zip-download, inline-view, dir-browse,
-pairing, and subdir-acl `.test.mjs` files; shared setup in `lib.mjs`,
-orchestrated by `run.sh` (starts a headless `--fileops --open` server
-on a temp dir, waits for readiness — never a fixed sleep, the first
-HTTPS start generates TLS material — and runs them all;
-`TTDROP_SCHEME=https` reruns the suite over TLS).
-Tests covering default postures (fileops-disabled, dir-browse,
-pairing) spawn their own servers with the flags they need — pairing
-uses `TTDROP_CONFIG_DIR` so test devices never touch the real config. They need Node.js, the `playwright`
+fileops, zip-download, inline-view, dir-browse, pairing, and
+subdir-acl `.test.mjs` files; shared setup in `lib.mjs`, orchestrated
+by `run.sh` (starts a headless `--open` server on a temp dir, waits
+for readiness — never a fixed sleep, the first HTTPS start generates
+TLS material — and runs them all; `TTDROP_SCHEME=https` reruns the
+suite over TLS). Upload tests must confirm the queue (`#upload-button`)
+after `setInputFiles` — nothing uploads unconfirmed. Tests covering
+default postures (dir-browse, pairing) spawn their own servers with
+the flags they need — pairing uses `TTDROP_CONFIG_DIR` so test
+devices never touch the real config. They need Node.js, the `playwright`
 package, and Chromium — deliberately not in the pixi env to keep it
 lean. Run every one of them before finishing a batch that touches
 transfer code, and add a test when adding a transfer behavior.
@@ -582,7 +603,8 @@ ttDrop/
     │       ├── WebRootHandler.java# embedded PWA assets from the jar
     │       ├── FilesHandler.java  # /files/: listings, Range downloads
     │       ├── UploadHandler.java # /api/upload/: chunked resumable
-    │       ├── FileOpsHandler.java# /api/files/: delete, rename
+    │       ├── FileOpsHandler.java# /api/files/: delete, rename, mkdir, move
+    │       ├── TrashHandler.java  # /api/trash: recycle bin, restore, purge
     │       ├── QrPngHandler.java  # /qr.png: QR of the site URL
     │       ├── CaCertHandler.java # /ca.crt: per-user CA download
     │       └── TlsSupport.java    # CA + server cert generation

@@ -118,6 +118,14 @@ public final class UploadHandler implements HttpHandler {
             sendJson(ex, 403, "{\"error\":\"writing to this folder is not allowed\"}");
             return;
         }
+        // Optional original modification time (millis): re-applied to
+        // the assembled file so uploads keep their real timestamp.
+        long mtime = 0;
+        try {
+            mtime = Long.parseLong(q.getOrDefault("mtime", "0"));
+        } catch (NumberFormatException ignored) {
+            // absent or malformed: keep the assembly time
+        }
         Path metaFile = staging.resolve("meta.properties");
         Properties meta = new Properties();
         if (Files.exists(metaFile)) {
@@ -135,6 +143,9 @@ public final class UploadHandler implements HttpHandler {
         meta.setProperty("name", name);
         meta.setProperty("size", String.valueOf(size));
         meta.setProperty("chunkSize", String.valueOf(chunkSize));
+        if (mtime > 0) {
+            meta.setProperty("mtime", String.valueOf(mtime));
+        }
         try (OutputStream out = Files.newOutputStream(metaFile)) {
             meta.store(out, null);
         }
@@ -255,6 +266,16 @@ public final class UploadHandler implements HttpHandler {
             return;
         }
         Files.move(assembling, target, StandardCopyOption.ATOMIC_MOVE);
+        // Keep the file's original timestamp, not the assembly time.
+        String mtime = meta.getProperty("mtime");
+        if (mtime != null) {
+            try {
+                Files.setLastModifiedTime(target,
+                        java.nio.file.attribute.FileTime.fromMillis(Long.parseLong(mtime)));
+            } catch (Exception ignored) {
+                // best effort: some filesystems refuse
+            }
+        }
         deleteRecursively(staging);
         String rel = deviceRoot.relativize(target).toString().replace('\\', '/');
         sendJson(ex, 200, "{\"name\":" + FilesHandler.quote(rel) + "}");
@@ -347,7 +368,8 @@ public final class UploadHandler implements HttpHandler {
                 continue;
             }
             String name = sanitize(segment);
-            if (name == null) {
+            // The staging and trash areas are never valid client paths.
+            if (name == null || name.equals(PART_DIR) || name.equals(TrashHandler.DIR)) {
                 return null;
             }
             clean.add(name);

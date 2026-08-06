@@ -42,6 +42,16 @@ public final class FilesHandler implements HttpHandler {
             java.util.Map.entry("ico", "image/x-icon"),
             java.util.Map.entry("svg", "image/svg+xml"),
             java.util.Map.entry("pdf", "application/pdf"),
+            java.util.Map.entry("mp4", "video/mp4"),
+            java.util.Map.entry("m4v", "video/mp4"),
+            java.util.Map.entry("webm", "video/webm"),
+            java.util.Map.entry("mov", "video/quicktime"),
+            java.util.Map.entry("mkv", "video/x-matroska"),
+            java.util.Map.entry("mp3", "audio/mpeg"),
+            java.util.Map.entry("m4a", "audio/mp4"),
+            java.util.Map.entry("wav", "audio/wav"),
+            java.util.Map.entry("ogg", "audio/ogg"),
+            java.util.Map.entry("flac", "audio/flac"),
             java.util.Map.entry("txt", "text/plain; charset=utf-8"),
             java.util.Map.entry("md", "text/plain; charset=utf-8"),
             java.util.Map.entry("log", "text/plain; charset=utf-8"),
@@ -50,15 +60,12 @@ public final class FilesHandler implements HttpHandler {
             java.util.Map.entry("xml", "text/plain; charset=utf-8"));
 
     private final Path fileRoot;
-    private final java.util.function.BooleanSupplier fileOps;
     private final java.util.function.BooleanSupplier dirBrowse;
     private final java.util.function.Function<HttpExchange, Devices.Device> auth;
 
-    public FilesHandler(Path fileRoot, java.util.function.BooleanSupplier fileOps,
-            java.util.function.BooleanSupplier dirBrowse,
+    public FilesHandler(Path fileRoot, java.util.function.BooleanSupplier dirBrowse,
             java.util.function.Function<HttpExchange, Devices.Device> auth) {
         this.fileRoot = fileRoot;
-        this.fileOps = fileOps;
         this.dirBrowse = dirBrowse;
         this.auth = auth;
     }
@@ -128,17 +135,19 @@ public final class FilesHandler implements HttpHandler {
     private void sendListing(HttpExchange ex, Devices.Device device, Path root, Path dir)
             throws IOException {
         boolean atDeviceRoot = dir.equals(root);
-        // fileOps tells the PWA whether to render rename/delete buttons:
-        // the global toggle AND the device's write grant.
+        // fileOps tells the PWA whether to render management buttons:
+        // purely the device's write grant (always-on server-side).
         StringBuilder json = new StringBuilder(
-                "{\"fileOps\":" + (fileOps.getAsBoolean() && device.write()) + ",\"entries\":[");
+                "{\"fileOps\":" + device.write() + ",\"entries\":[");
         try (Stream<Path> entries = Files.list(dir)) {
             boolean first = true;
             for (Path p : (Iterable<Path>) entries.sorted()::iterator) {
-                if (p.getFileName().toString().equals(UploadHandler.PART_DIR)) {
+                String entryName = p.getFileName().toString();
+                if (entryName.equals(UploadHandler.PART_DIR)
+                        || entryName.equals(TrashHandler.DIR)) {
                     continue;
                 }
-                if (atDeviceRoot && !device.canReadSub(p.getFileName().toString())) {
+                if (atDeviceRoot && !device.canReadSub(entryName)) {
                     continue;
                 }
                 if (!first) {
@@ -227,7 +236,7 @@ public final class FilesHandler implements HttpHandler {
                             .comparing((Path e) -> !Files.isDirectory(e))
                             .thenComparing(e -> e.getFileName().toString()))::iterator) {
                 String name = p.getFileName().toString();
-                if (name.equals(UploadHandler.PART_DIR)
+                if (name.equals(UploadHandler.PART_DIR) || name.equals(TrashHandler.DIR)
                         || (atDeviceRoot && !device.canReadSub(name))) {
                     continue;
                 }

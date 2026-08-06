@@ -22,6 +22,8 @@ await context.route("**/api/upload/chunk*", async (route) => {
 
 await page.goto(BASE, { waitUntil: "networkidle" });
 await page.setInputFiles("#file-input", srcPath);
+await page.waitForSelector("#queue-list li", { timeout: 15000 });
+await page.click("#upload-button");
 await page.waitForSelector("#send-list .cancel", { timeout: 30000 });
 await page.waitForTimeout(500); // let staging + first PUTs begin
 await page.click("#send-list .cancel");

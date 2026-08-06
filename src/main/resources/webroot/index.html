@@ -40,6 +40,12 @@ placeholder="XXXX-XXXX" aria-label="Pairing code" required>
 <input id="file-input" type="file" multiple hidden>
 <input id="folder-input" type="file" webkitdirectory hidden>
 </div>
+<div id="queue-bar" hidden>
+<label>Upload to: <select id="target-select"></select></label>
+<button id="upload-button" type="button">Upload</button>
+<button id="queue-clear" type="button">Clear</button>
+</div>
+<ul id="queue-list" class="file-list"></ul>
 <ul id="send-list" class="file-list"></ul>
 </section>
 <section id="receive-section">
@@ -48,8 +54,31 @@ placeholder="XXXX-XXXX" aria-label="Pairing code" required>
 </section>
 <section id="browse-section">
 <h2>Files on server</h2>
+<div id="browse-bar">
 <nav id="breadcrumbs" aria-label="Current folder"></nav>
+<span id="browse-tools">
+<button id="new-folder" type="button" hidden>New folder</button>
+<button id="trash-button" type="button" hidden>♻ Bin</button>
+<label>View: <select id="view-select">
+<option value="list">List</option>
+<option value="details" selected>Details</option>
+<option value="icons-s">Small icons</option>
+<option value="icons-m">Medium icons</option>
+<option value="icons-l">Large icons</option>
+<option value="icons-xl">Extra large icons</option>
+<option value="gallery">Gallery</option>
+</select></label>
+</span>
+</div>
 <ul id="server-list" class="file-list repo-list"></ul>
+<div id="trash-panel" hidden>
+<h2>Recycle bin</h2>
+<p class="muted">
+Deleted items wait here until restored or removed forever.
+<button id="trash-empty" type="button">Empty bin</button>
+</p>
+<ul id="trash-list" class="file-list repo-list"></ul>
+</div>
 </section>
 </main>
 <footer>

@@ -1,5 +1,6 @@
-/* Renames and deletes server files through the PWA UI (prompt/confirm
- * dialogs) and verifies the results on disk and in the listing. */
+/* The PWA file manager end to end: rename, delete (to the recycle
+ * bin), restore and purge, new folder, and move — all through the real
+ * dialogs, verified on disk. */
 import { launchBrowser, CONTEXT_OPTIONS, BASE, SERVE_DIR } from "./lib.mjs";
 import { writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -50,6 +51,45 @@ await page.waitForFunction(
   { timeout: 15000 }
 );
 check("folder recursively deleted", !existsSync(join(SERVE_DIR, "ops")));
+
+// New folder via the toolbar button
+page.once("dialog", (d) => d.accept("made-here"));
+await page.click("#new-folder");
+await page.waitForSelector(`#server-list a:text("made-here/")`, { timeout: 15000 });
+check("new folder created on disk", existsSync(join(SERVE_DIR, "made-here")));
+
+// Move a root file into the new folder (⇄ prompt takes the target path)
+writeFileSync(join(SERVE_DIR, "move-me.txt"), "moving");
+await page.click(`#breadcrumbs a:text("files")`);
+await page.waitForSelector(`#server-list a:text("move-me.txt")`);
+page.once("dialog", (d) => d.accept("made-here"));
+await page.click(`#server-list li:has(a:text("move-me.txt")) button[title^="Move"]`);
+await page.waitForFunction(
+  () => ![...document.querySelectorAll("#server-list a")]
+    .some((a) => a.textContent === "move-me.txt"),
+  { timeout: 15000 }
+);
+check("moved on disk", existsSync(join(SERVE_DIR, "made-here", "move-me.txt"))
+  && !existsSync(join(SERVE_DIR, "move-me.txt")));
+
+// The recycle bin holds the deleted items; restore the ops folder.
+await page.click("#trash-button");
+await page.waitForSelector("#trash-list li", { timeout: 15000 });
+await page.click(`#trash-list li:has(.name:text("ops")) button[title^="Restore"]`);
+await page.waitForSelector(`#server-list a:text("ops/")`, { timeout: 15000 });
+check("folder restored from the bin",
+  existsSync(join(SERVE_DIR, "ops")) && existsSync(join(SERVE_DIR, "ops", "new-name.txt")));
+
+// Purge the deleted file forever.
+page.once("dialog", (d) => d.accept());
+await page.click(`#trash-list li:has(.name:text("victim.txt")) button[title^="Remove"]`);
+await page.waitForFunction(
+  () => ![...document.querySelectorAll("#trash-list .name")]
+    .some((n) => n.textContent === "victim.txt"),
+  { timeout: 15000 }
+);
+check("purged item stays gone", !existsSync(join(SERVE_DIR, "victim.txt"))
+  && !existsSync(join(SERVE_DIR, "ops", "victim.txt")));
 
 console.log(fail === 0 ? "TEST PASS" : "TEST FAIL");
 await browser.close();
